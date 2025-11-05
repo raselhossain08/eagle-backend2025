@@ -97,9 +97,30 @@ app.use(helmet({
   } : false, // Disable CSP in development for easier testing
 }));
 
-// CORS configuration to allow API access from any origin
+// CORS configuration to allow API access from specific origins
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://162.248.101.144:3000',
+  'http://eagleinvest.us',
+  'https://eagleinvest.us',
+  'http://www.eagleinvest.us',
+  'https://www.eagleinvest.us',
+  process.env.FRONTEND_URL,
+  process.env.DASHBOARD_URL,
+].filter(Boolean); // Filter out undefined values
+
 const corsOptions = {
-  origin: true, // Allow all origins
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV !== 'production') {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true, // Allow cookies and authorization headers
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
   allowedHeaders: [
