@@ -252,6 +252,60 @@ const systemSettingsSchema = new mongoose.Schema({
         default: true
       }
     },
+    paymentGateways: {
+      stripe: {
+        enabled: {
+          type: Boolean,
+          default: false
+        },
+        mode: {
+          type: String,
+          enum: ['test', 'live'],
+          default: 'test'
+        },
+        publishableKey: {
+          type: String,
+          trim: true,
+          select: false // Don't return by default
+        },
+        secretKey: {
+          type: String,
+          trim: true,
+          select: false // Don't return by default
+        },
+        webhookSecret: {
+          type: String,
+          trim: true,
+          select: false
+        }
+      },
+      paypal: {
+        enabled: {
+          type: Boolean,
+          default: false
+        },
+        mode: {
+          type: String,
+          enum: ['sandbox', 'live'],
+          default: 'sandbox'
+        },
+        clientId: {
+          type: String,
+          trim: true,
+          select: false
+        },
+        clientSecret: {
+          type: String,
+          trim: true,
+          select: false
+        },
+        webhookId: {
+          type: String,
+          trim: true,
+          select: false
+        }
+      }
+    },
     security: {
       encryptionEnabled: {
         type: Boolean,
@@ -291,7 +345,7 @@ systemSettingsSchema.index({ 'legalTexts.type': 1, 'legalTexts.language': 1 });
 systemSettingsSchema.index({ 'policyUrls.type': 1 });
 
 // Static method to get singleton settings
-systemSettingsSchema.statics.getSettings = async function() {
+systemSettingsSchema.statics.getSettings = async function () {
   let settings = await this.findOne();
   if (!settings) {
     settings = await this.create({});
@@ -300,13 +354,13 @@ systemSettingsSchema.statics.getSettings = async function() {
 };
 
 // Instance method to add feature flag
-systemSettingsSchema.methods.addFeatureFlag = function(flagData) {
+systemSettingsSchema.methods.addFeatureFlag = function (flagData) {
   this.featureFlags.push(flagData);
   return this.save();
 };
 
 // Instance method to update feature flag
-systemSettingsSchema.methods.updateFeatureFlag = function(flagId, updates) {
+systemSettingsSchema.methods.updateFeatureFlag = function (flagId, updates) {
   const flag = this.featureFlags.id(flagId);
   if (!flag) {
     throw new Error('Feature flag not found');
@@ -316,26 +370,26 @@ systemSettingsSchema.methods.updateFeatureFlag = function(flagId, updates) {
 };
 
 // Instance method to remove feature flag
-systemSettingsSchema.methods.removeFeatureFlag = function(flagId) {
+systemSettingsSchema.methods.removeFeatureFlag = function (flagId) {
   this.featureFlags.pull(flagId);
   return this.save();
 };
 
 // Instance method to add legal text
-systemSettingsSchema.methods.addLegalText = function(textData) {
+systemSettingsSchema.methods.addLegalText = function (textData) {
   // Deactivate other texts of the same type and language
   this.legalTexts.forEach(text => {
     if (text.type === textData.type && text.language === textData.language) {
       text.isActive = false;
     }
   });
-  
+
   this.legalTexts.push(textData);
   return this.save();
 };
 
 // Instance method to add policy URL
-systemSettingsSchema.methods.addPolicyUrl = function(urlData) {
+systemSettingsSchema.methods.addPolicyUrl = function (urlData) {
   this.policyUrls.push(urlData);
   return this.save();
 };

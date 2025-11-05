@@ -1,10 +1,15 @@
 const express = require("express");
 const router = express.Router();
 const { protect } = require("../middlewares/auth.middleware");
-const updateSubscription = require("../controllers/subscription/updateSubscription");
-const getSubscriptionStatus = require("../controllers/subscription/getSubscriptionStatus");
-const scheduleDowngrade = require("../controllers/subscription/scheduleDowngrade");
-const cancelDowngrade = require("../controllers/subscription/cancelDowngrade");
+
+// Import from subscription module
+const {
+  updateSubscription,
+  getSubscriptionStatus,
+  scheduleDowngrade,
+  cancelDowngrade,
+  getDueForRenewal
+} = require("../subscription/controllers");
 
 /**
  * @swagger
@@ -16,6 +21,7 @@ const cancelDowngrade = require("../controllers/subscription/cancelDowngrade");
 router.use(protect); // Protect all subscription routes
 
 router.get("/status", getSubscriptionStatus);
+router.get("/due-for-renewal", getDueForRenewal);
 router.put("/update", updateSubscription);
 router.post("/schedule-downgrade", scheduleDowngrade);
 router.post("/cancel-downgrade", cancelDowngrade);

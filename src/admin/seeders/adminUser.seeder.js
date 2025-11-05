@@ -5,7 +5,7 @@ const AdminUser = require('../models/adminUser.model');
  * Creates default admin users for different roles
  */
 class AdminUserSeeder {
-  
+
   static async seedAdminUsers() {
     console.log('🌱 Seeding admin users...');
 
@@ -255,10 +255,10 @@ class AdminUserSeeder {
   static async resetAdminUsers() {
     try {
       console.log('🧹 Resetting admin users...');
-      
+
       const result = await AdminUser.deleteMany({});
       console.log(`✅ Deleted ${result.deletedCount} admin users`);
-      
+
       return result;
     } catch (error) {
       console.error('❌ Error resetting admin users:', error.message);
@@ -350,13 +350,13 @@ class AdminUserSeeder {
   static async seedAll() {
     try {
       console.log('🚀 Starting admin users seeding...');
-      
+
       const result = await this.seedAdminUsers();
       await this.updateAdminPermissions();
-      
+
       console.log('🎉 Admin users seeding completed successfully!');
       return result;
-      
+
     } catch (error) {
       console.error('❌ Admin users seeding failed:', error.message);
       throw error;
@@ -368,14 +368,14 @@ module.exports = AdminUserSeeder;
 
 // If running directly
 if (require.main === module) {
-  const connectDB = require('../../../config/db');
-  
+  const connectDB = require('../../config/db');
+
   const runSeeder = async () => {
     try {
       await connectDB();
-      
+
       const command = process.argv[2];
-      
+
       switch (command) {
         case 'seed':
           await AdminUserSeeder.seedAll();
@@ -390,12 +390,12 @@ if (require.main === module) {
           const email = process.argv[3];
           const username = process.argv[4];
           const password = process.argv[5];
-          
+
           if (!email || !username || !password) {
             console.error('❌ Usage: node adminUser.seeder.js create-super-admin <email> <username> <password>');
             process.exit(1);
           }
-          
+
           await AdminUserSeeder.createSuperAdmin({ email, username, password });
           break;
         default:
@@ -405,13 +405,13 @@ if (require.main === module) {
           console.log('  node adminUser.seeder.js update-permissions                - Update permissions');
           console.log('  node adminUser.seeder.js create-super-admin <email> <username> <password> - Create super admin');
       }
-      
+
       process.exit(0);
     } catch (error) {
       console.error('❌ Seeder error:', error.message);
       process.exit(1);
     }
   };
-  
+
   runSeeder();
 }

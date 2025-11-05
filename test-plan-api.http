@@ -1,0 +1,257 @@
+# Plan Management API - Test Endpoints
+# Use with Thunder Client, Postman, REST Client, or curl
+
+@baseUrl = http://localhost:5000/api/plans
+@authToken = YOUR_JWT_TOKEN_HERE
+@planId = PLAN_ID_HERE
+
+### Health Check
+GET http://localhost:5000/api/health
+
+###############################################################################
+# PUBLIC ENDPOINTS (No Authentication Required)
+###############################################################################
+
+### 1. Get All Public Plans
+GET {{baseUrl}}/public
+
+### 2. Get Public Plans by Type (Mentorship)
+GET {{baseUrl}}/public?planType=mentorship
+
+### 3. Get Public Plans by Type (Subscription)
+GET {{baseUrl}}/public?planType=subscription
+
+###############################################################################
+# PROTECTED ENDPOINTS (Authentication Required)
+###############################################################################
+
+### 4. Get All Plans (with pagination)
+GET {{baseUrl}}
+Authorization: Bearer {{authToken}}
+
+### 5. Get All Plans with Filters
+GET {{baseUrl}}?planType=subscription&isActive=true&page=1&limit=10&sortBy=displayName&sortOrder=asc
+Authorization: Bearer {{authToken}}
+
+### 6. Get Plan Statistics
+GET {{baseUrl}}/stats
+Authorization: Bearer {{authToken}}
+
+### 7. Get Featured Plans
+GET {{baseUrl}}/featured/active
+Authorization: Bearer {{authToken}}
+
+### 8. Get Plans by Type (Subscription)
+GET {{baseUrl}}/type/subscription
+Authorization: Bearer {{authToken}}
+
+### 9. Get Plans by Type (Mentorship)
+GET {{baseUrl}}/type/mentorship
+Authorization: Bearer {{authToken}}
+
+### 10. Get Plans by Category (Basic)
+GET {{baseUrl}}/category/basic
+Authorization: Bearer {{authToken}}
+
+### 11. Get Plans by Category (Diamond)
+GET {{baseUrl}}/category/diamond
+Authorization: Bearer {{authToken}}
+
+### 12. Get Plan by ID
+GET {{baseUrl}}/{{planId}}
+Authorization: Bearer {{authToken}}
+
+###############################################################################
+# CREATE PLAN
+###############################################################################
+
+### 13. Create New Plan
+POST {{baseUrl}}
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "name": "test-api-plan",
+  "displayName": "Test API Plan",
+  "description": "This is a test plan created via API",
+  "planType": "subscription",
+  "category": "basic",
+  "pricing": {
+    "monthly": {
+      "price": 29.99,
+      "originalPrice": 39.99,
+      "discount": "25% OFF",
+      "savings": 10
+    },
+    "annual": {
+      "price": 299.99,
+      "originalPrice": 479.88,
+      "discount": "37% OFF",
+      "savings": 179.89
+    }
+  },
+  "features": [
+    "Feature 1",
+    "Feature 2",
+    "Feature 3",
+    "24/7 Support"
+  ],
+  "advancedFeatures": [
+    {
+      "name": "Advanced Feature",
+      "description": "This is an advanced exclusive feature",
+      "isExclusive": true
+    }
+  ],
+  "ui": {
+    "icon": "star",
+    "gradient": "from-blue-500 to-purple-600",
+    "color": "blue",
+    "badgeText": "Popular",
+    "badgeColor": "blue"
+  },
+  "isActive": true,
+  "isPopular": false,
+  "isFeatured": false,
+  "sortOrder": 1,
+  "accessLevel": 1,
+  "tags": ["test", "api", "subscription"]
+}
+
+###############################################################################
+# UPDATE PLAN
+###############################################################################
+
+### 14. Update Plan
+PUT {{baseUrl}}/{{planId}}
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "name": "test-api-plan",
+  "displayName": "Updated Test API Plan",
+  "description": "This plan has been updated",
+  "planType": "subscription",
+  "category": "diamond",
+  "pricing": {
+    "monthly": {
+      "price": 39.99,
+      "originalPrice": 49.99,
+      "discount": "20% OFF",
+      "savings": 10
+    }
+  },
+  "features": [
+    "Updated Feature 1",
+    "Updated Feature 2",
+    "New Feature 3"
+  ],
+  "ui": {
+    "icon": "crown",
+    "gradient": "from-purple-500 to-pink-600",
+    "color": "purple",
+    "badgeText": "Updated",
+    "badgeColor": "purple"
+  },
+  "isActive": true,
+  "isPopular": true,
+  "tags": ["test", "updated"]
+}
+
+###############################################################################
+# PLAN MANAGEMENT OPERATIONS
+###############################################################################
+
+### 15. Toggle Archive Status (Activate/Deactivate)
+PUT {{baseUrl}}/{{planId}}/archive
+Authorization: Bearer {{authToken}}
+
+### 16. Toggle Featured Status
+PUT {{baseUrl}}/{{planId}}/feature
+Authorization: Bearer {{authToken}}
+
+### 17. Toggle Popular Status
+PUT {{baseUrl}}/{{planId}}/popular
+Authorization: Bearer {{authToken}}
+
+### 18. Duplicate Plan
+POST {{baseUrl}}/{{planId}}/duplicate
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "name": "test-api-plan-duplicate",
+  "displayName": "Test API Plan (Copy)"
+}
+
+###############################################################################
+# BULK OPERATIONS
+###############################################################################
+
+### 19. Bulk Update Plans
+PUT {{baseUrl}}/bulk
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "planIds": ["PLAN_ID_1", "PLAN_ID_2"],
+  "updateData": {
+    "isActive": true,
+    "tags": ["bulk-updated", "active"]
+  }
+}
+
+### 20. Reorder Plans
+PUT {{baseUrl}}/reorder
+Authorization: Bearer {{authToken}}
+Content-Type: application/json
+
+{
+  "planOrders": [
+    { "id": "PLAN_ID_1", "sortOrder": 1 },
+    { "id": "PLAN_ID_2", "sortOrder": 2 },
+    { "id": "PLAN_ID_3", "sortOrder": 3 }
+  ]
+}
+
+###############################################################################
+# DELETE OPERATIONS
+###############################################################################
+
+### 21. Soft Delete Plan (isDeleted = true)
+DELETE {{baseUrl}}/{{planId}}
+Authorization: Bearer {{authToken}}
+
+### 22. Permanent Delete Plan (Remove from database)
+DELETE {{baseUrl}}/{{planId}}?permanent=true
+Authorization: Bearer {{authToken}}
+
+###############################################################################
+# CURL EXAMPLES
+###############################################################################
+
+# Get Public Plans
+# curl http://localhost:5000/api/plans/public
+
+# Get All Plans (Authenticated)
+# curl -H "Authorization: Bearer YOUR_TOKEN" http://localhost:5000/api/plans
+
+# Create Plan
+# curl -X POST http://localhost:5000/api/plans \
+#   -H "Authorization: Bearer YOUR_TOKEN" \
+#   -H "Content-Type: application/json" \
+#   -d '{"name":"test-plan","displayName":"Test Plan","description":"Test","planType":"subscription","category":"basic","pricing":{"monthly":{"price":29.99}},"features":["Feature 1"],"ui":{"icon":"star","gradient":"from-blue-500","color":"blue"}}'
+
+# Update Plan
+# curl -X PUT http://localhost:5000/api/plans/PLAN_ID \
+#   -H "Authorization: Bearer YOUR_TOKEN" \
+#   -H "Content-Type: application/json" \
+#   -d '{"displayName":"Updated Plan"}'
+
+# Toggle Featured
+# curl -X PUT http://localhost:5000/api/plans/PLAN_ID/feature \
+#   -H "Authorization: Bearer YOUR_TOKEN"
+
+# Delete Plan
+# curl -X DELETE http://localhost:5000/api/plans/PLAN_ID \
+#   -H "Authorization: Bearer YOUR_TOKEN"

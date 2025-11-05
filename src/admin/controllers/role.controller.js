@@ -3,6 +3,7 @@ const Permission = require('../models/permission.model');
 const UserRole = require('../models/userRole.model');
 const AuditLog = require('../models/auditLog.model');
 const RBACMiddleware = require('../middlewares/rbac.middleware');
+const RBACUtils = require('../utils/rbac.utils');
 
 class RoleController {
   
@@ -61,6 +62,15 @@ class RoleController {
   static async getRoleById(req, res) {
     try {
       const { roleId } = req.params;
+      
+      // Validate roleId using utility
+      const roleIdValidation = RBACUtils.validateObjectId(roleId, 'Role ID');
+      if (!roleIdValidation.valid) {
+        return res.status(400).json({
+          success: false,
+          message: roleIdValidation.error
+        });
+      }
       
       const role = await Role.findById(roleId)
         .populate('permissions')
@@ -187,6 +197,15 @@ class RoleController {
       const { displayName, description, permissions, isActive } = req.body;
       const userId = req.user.id;
 
+      // Validate roleId using utility
+      const roleIdValidation = RBACUtils.validateObjectId(roleId, 'Role ID');
+      if (!roleIdValidation.valid) {
+        return res.status(400).json({
+          success: false,
+          message: roleIdValidation.error
+        });
+      }
+
       const role = await Role.findById(roleId);
       if (!role) {
         return res.status(404).json({
@@ -266,6 +285,15 @@ class RoleController {
       const { roleId } = req.params;
       const userId = req.user.id;
 
+      // Validate roleId using utility
+      const roleIdValidation = RBACUtils.validateObjectId(roleId, 'Role ID');
+      if (!roleIdValidation.valid) {
+        return res.status(400).json({
+          success: false,
+          message: roleIdValidation.error
+        });
+      }
+
       const role = await Role.findById(roleId);
       if (!role) {
         return res.status(404).json({
@@ -336,6 +364,19 @@ class RoleController {
         return res.status(400).json({
           success: false,
           message: 'User ID and Role ID are required'
+        });
+      }
+
+      // Validate IDs using utility
+      const idsValidation = RBACUtils.validateMultipleObjectIds({
+        'Role ID': roleId,
+        'User ID': targetUserId
+      });
+      
+      if (!idsValidation.valid) {
+        return res.status(400).json({
+          success: false,
+          message: idsValidation.errors.join(', ')
         });
       }
 
@@ -414,6 +455,15 @@ class RoleController {
     try {
       const { userRoleId } = req.params;
       const removerId = req.user.id;
+
+      // Validate userRoleId using utility
+      const userRoleIdValidation = RBACUtils.validateObjectId(userRoleId, 'User Role ID');
+      if (!userRoleIdValidation.valid) {
+        return res.status(400).json({
+          success: false,
+          message: userRoleIdValidation.error
+        });
+      }
 
       const userRole = await UserRole.findById(userRoleId)
         .populate('roleId')

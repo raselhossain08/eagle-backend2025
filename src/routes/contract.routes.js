@@ -11,7 +11,19 @@ const {
   getGuestContractById,
   getPublicUserContracts,
   getGuestContracts,
-} = require("../controllers/contract.controller");
+  getAllContracts,
+  deleteContract,
+  updateContract,
+  getTemplates,
+  createTemplate,
+  updateTemplate,
+  deleteTemplate,
+  exportContracts,
+  getEvidencePackets,
+} = require("../contract/controllers/contract.controller");
+
+// Import temporary stats function
+const { getContractStats } = require("../contract/controllers/getContractStats");
 const { processExistingContractsEndpoint } = require("../utils/processExistingContracts");
 const { protect, optionalAuth } = require("../middlewares/auth.middleware");
 
@@ -61,6 +73,46 @@ router.post("/public/sign", createContractWithContact);
 // All other routes require authentication
 router.use(protect);
 
+// @route   GET /api/contracts/stats
+// @desc    Get contract statistics
+// @access  Protected
+router.get("/stats", getContractStats);
+
+// @route   GET /api/contracts/templates
+// @desc    Get contract templates
+// @access  Protected
+router.get("/templates", getTemplates);
+
+// @route   POST /api/contracts/templates
+// @desc    Create contract template
+// @access  Protected
+router.post("/templates", createTemplate);
+
+// @route   PUT /api/contracts/templates/:id
+// @desc    Update contract template
+// @access  Protected
+router.put("/templates/:id", updateTemplate);
+
+// @route   DELETE /api/contracts/templates/:id
+// @desc    Delete contract template
+// @access  Protected
+router.delete("/templates/:id", deleteTemplate);
+
+// @route   GET /api/contracts/export
+// @desc    Export contracts
+// @access  Protected
+router.get("/export", exportContracts);
+
+// @route   GET /api/contracts/evidence
+// @desc    Get evidence packets
+// @access  Protected
+router.get("/evidence", getEvidencePackets);
+
+// @route   GET /api/contracts
+// @desc    Get all contracts with filters and pagination
+// @access  Protected
+router.get("/", getAllContracts);
+
 // @route   POST /api/contracts/generate-pdf
 // @desc    Generate PDF for contract
 // @access  Protected
@@ -77,7 +129,6 @@ router.post("/sign", storeSignedContract);
 router.put("/:contractId/payment", updatePaymentStatus);
 
 // @route   GET /api/contracts/:contractId/pdf
-// @route   GET /api/contracts/:contractId/pdf
 // @desc    Get secure PDF URL for contract
 // @access  Protected
 router.get("/:contractId/pdf", getContractPDFUrl);
@@ -86,6 +137,16 @@ router.get("/:contractId/pdf", getContractPDFUrl);
 // @desc    Process existing contracts to create user accounts (utility endpoint)
 // @access  Public (can be protected later if needed)
 router.post("/process-existing", processExistingContractsEndpoint);
+
+// @route   PUT /api/contracts/:id
+// @desc    Update contract
+// @access  Protected
+router.put("/:id", updateContract);
+
+// @route   DELETE /api/contracts/:id
+// @desc    Delete contract
+// @access  Protected
+router.delete("/:id", deleteContract);
 
 // @route   GET /api/contracts/:contractId
 // @desc    Get contract by ID

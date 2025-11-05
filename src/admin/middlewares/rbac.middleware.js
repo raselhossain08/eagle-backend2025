@@ -2,6 +2,7 @@ const Role = require('../models/role.model');
 const Permission = require('../models/permission.model');
 const UserRole = require('../models/userRole.model');
 const AuditLog = require('../models/auditLog.model');
+const AdminUser = require('../models/adminUser.model');
 
 /**
  * RBAC Middleware for checking permissions
@@ -37,10 +38,18 @@ class RBACMiddleware {
 
         // Super Admin bypasses all permission checks
         if (await RBACMiddleware.isSuperAdmin(userId)) {
+          console.log('✅ RBAC: Super admin detected, bypassing permission check');
           return next();
         }
 
-        // Check if user has the required permission
+        // Check if admin user has built-in admin level permissions
+        const adminUser = await AdminUser.findById(userId);
+        if (adminUser && adminUser.adminLevel === 'super_admin') {
+          console.log('✅ RBAC: Admin user has super_admin level, bypassing permission check');
+          return next();
+        }
+
+        // Check if user has the required permission through RBAC
         const hasPermission = await RBACMiddleware.userHasPermission(userId, resource, action);
         
         if (!hasPermission) {
@@ -159,6 +168,13 @@ class RBACMiddleware {
    */
   static async isSuperAdmin(userId) {
     try {
+      // First check admin user level
+      const adminUser = await AdminUser.findById(userId);
+      if (adminUser && adminUser.adminLevel === 'super_admin') {
+        return true;
+      }
+
+      // Then check RBAC roles
       const userRoles = await UserRole.find({ 
         userId, 
         isActive: true,
@@ -211,6 +227,26 @@ class RBACMiddleware {
    */
   static async userHasPermission(userId, resource, action) {
     try {
+      // First check if admin user has built-in permissions
+      const adminUser = await AdminUser.findById(userId);
+      if (adminUser) {
+        // Super admin level has all permissions
+        if (adminUser.adminLevel === 'super_admin') {
+          return true;
+        }
+
+        // Check admin user's built-in permissions array
+        if (adminUser.permissions && adminUser.permissions.length > 0) {
+          const hasBuiltInPermission = adminUser.permissions.some(perm => 
+            perm.module === resource && perm.actions.includes(action)
+          );
+          if (hasBuiltInPermission) {
+            return true;
+          }
+        }
+      }
+
+      // Then check RBAC permissions through roles
       const userRoles = await RBACMiddleware.getUserRoles(userId);
       
       for (const role of userRoles) {
@@ -226,6 +262,7 @@ class RBACMiddleware {
         }
       }
 
+      console.log(`❌ RBAC: User ${userId} does not have permission ${resource}:${action}`);
       return false;
     } catch (error) {
       console.error('Error checking user permission:', error);

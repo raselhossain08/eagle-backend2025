@@ -10,6 +10,58 @@ const RBACMiddleware = require('../middlewares/rbac.middleware');
 class RBACUtils {
 
   /**
+   * Validate MongoDB ObjectId
+   * @param {String} id - The ID to validate
+   * @param {String} fieldName - Name of the field for error messages
+   * @returns {Object} Validation result
+   */
+  static validateObjectId(id, fieldName = 'ID') {
+    if (!id) {
+      return {
+        valid: false,
+        error: `${fieldName} is required`
+      };
+    }
+
+    if (id === 'undefined' || id === 'null') {
+      return {
+        valid: false,
+        error: `Valid ${fieldName.toLowerCase()} is required`
+      };
+    }
+
+    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+      return {
+        valid: false,
+        error: `Invalid ${fieldName.toLowerCase()} format`
+      };
+    }
+
+    return { valid: true };
+  }
+
+  /**
+   * Validate multiple ObjectIds
+   * @param {Object} ids - Object with id values and their field names
+   * @returns {Object} Validation result
+   */
+  static validateMultipleObjectIds(ids) {
+    const errors = [];
+    
+    for (const [fieldName, id] of Object.entries(ids)) {
+      const validation = this.validateObjectId(id, fieldName);
+      if (!validation.valid) {
+        errors.push(validation.error);
+      }
+    }
+
+    return {
+      valid: errors.length === 0,
+      errors
+    };
+  }
+
+  /**
    * Get user's effective permissions (combining all roles)
    * @param {String} userId 
    * @returns {Object} Organized permissions by category

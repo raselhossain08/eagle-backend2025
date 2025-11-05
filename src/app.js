@@ -13,11 +13,32 @@ const adminRoutes = require("./routes/admin.routes");
 const subscriptionRoutes = require("./routes/subscription.routes");
 const paymentRoutes = require("./routes/payment.routes");
 const paypalRoutes = require("./routes/paypalRoutes");
-const contractRoutes = require("./routes/contract.routes");
+const contractRoutes = require("./routes/contracts.routes"); // Updated to use combined routes
 const packageRoutes = require("./routes/package.routes");
 const basicRoutes = require("./routes/basic.routes");
 const functionRoutes = require("./routes/function.routes");
+const analyticsRoutes = require("./analytics/routes/analytics.routes");
 const rbacRoutes = require("./admin/routes/index");
+
+// Comprehensive Payment Module Routes
+const billingRoutes = require("./payment/routes/billing.routes");
+const discountRoutes = require("./payment/routes/discount.routes");
+const dunningRoutes = require("./payment/routes/dunning.routes");
+const financeRoutes = require("./payment/routes/finance.routes");
+const taxRoutes = require("./payment/routes/tax.routes");
+const paymentProcessorsRoutes = require("./payment/routes/paymentProcessors.routes");
+const supportRoutes = require("./support/routes/index");
+const integrationRoutes = require("./integrations/routes/index");
+
+// Subscription module routes
+const { subscriptionsRoutes, subscribersRoutes } = require("./subscription");
+
+// Plan Management Routes
+const { planRoutes } = require("./plans");
+
+// Transaction Module Routes
+const { transactionRoutes } = require("./transaction");
+
 const errorHandler = require("./middlewares/errorHandler");
 const requestLogger = require("./middlewares/requestLogger");
 const dotenv = require("dotenv");
@@ -33,20 +54,20 @@ const initializeApp = async () => {
   try {
     await connectDB();
     console.log("🚀 Database connection established successfully");
-    
+
     // Additional verification that connection is ready
     const mongoose = require('mongoose');
     if (mongoose.connection.readyState === 1) {
     } else {
     }
-    
+
   } catch (error) {
 
-    
+
     // For development, try to reconnect
     if (process.env.NODE_ENV !== 'production') {
       setTimeout(() => {
-       
+
         initializeApp();
       }, 5000);
     }
@@ -88,7 +109,7 @@ const corsOptions = {
   origin: function (origin, callback) {
     // Allow requests with no origin (like mobile apps or curl requests)
     if (!origin) return callback(null, true);
-    
+
     if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV !== 'production') {
       callback(null, true);
     } else {
@@ -99,7 +120,7 @@ const corsOptions = {
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
   allowedHeaders: [
     'Origin',
-    'X-Requested-With', 
+    'X-Requested-With',
     'Content-Type',
     'Accept',
     'Authorization',
@@ -131,17 +152,17 @@ app.use((req, res, next) => {
   res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
   res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS, HEAD');
-  res.header('Access-Control-Allow-Headers', 
+  res.header('Access-Control-Allow-Headers',
     'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-API-Key, Cache-Control, Access-Control-Allow-Credentials'
   );
   res.header('Access-Control-Expose-Headers', 'Authorization, Content-Range, X-Content-Range');
-  
+
   // Handle preflight requests
   if (req.method === 'OPTIONS') {
     res.status(200).end();
     return;
   }
-  
+
   next();
 });
 
@@ -202,14 +223,36 @@ app.get("/", (req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/admin", adminRoutes);
-app.use("/api/subscription", subscriptionRoutes);
+app.use("/api/subscription", subscriptionRoutes); // Legacy subscription routes
 app.use("/api/payment", paymentRoutes);
 app.use("/api/paypal", paypalRoutes);
 app.use("/api/contracts", contractRoutes);
 app.use("/api/package", packageRoutes);
-app.use("/api/basic", basicRoutes);
+app.use("/api/basics", basicRoutes);
 app.use("/api/functions", functionRoutes);
-app.use("/api/rbac", rbacRoutes);
+app.use("/api/analytics", analyticsRoutes);
+app.use("/api/admin", rbacRoutes);
+
+// Comprehensive Payment Module Routes
+app.use("/api/billing", billingRoutes);
+app.use("/api/discounts", discountRoutes);
+app.use("/api/payments/discounts", discountRoutes); // Alias for payment path
+app.use("/api/dunning", dunningRoutes);
+app.use("/api/finance", financeRoutes);
+app.use("/api/tax", taxRoutes);
+app.use("/api/payment-processors", paymentProcessorsRoutes);
+app.use("/api/support", supportRoutes);
+app.use("/api/integrations", integrationRoutes);
+
+// Subscription module routes (comprehensive)
+app.use("/api/v1/subscriptions", subscriptionsRoutes); // Admin subscription management
+app.use("/api/v1/subscribers", subscribersRoutes); // Subscriber lifecycle management
+
+// Plan Management Routes
+app.use("/api/plans", planRoutes);
+
+// Transaction Module Routes
+app.use("/api/transactions", transactionRoutes);
 
 // -----------------------------
 // API Routes Complete
@@ -218,11 +261,11 @@ app.use("/api/rbac", rbacRoutes);
 // Health check endpoint
 app.get("/api/health", async (req, res) => {
   const mongoose = require('mongoose');
-  
+
   // Check database connection
   let dbStatus = 'disconnected';
   let dbError = null;
-  
+
   try {
     if (mongoose.connection.readyState === 1) {
       dbStatus = 'connected';
@@ -256,9 +299,12 @@ app.get("/api/health", async (req, res) => {
     },
     features: [
       "JWT Authentication",
-      "Role-based Access Control", 
+      "Role-based Access Control",
       "Package Management System",
-      "Payment Integration (Stripe/PayPal)",
+      "Payment Integration (Stripe/PayPal/Braintree)",
+      "Communication Services (Email/SMS)",
+      "Multi-Provider Integration System",
+      "Support Tools (User Impersonation, Notes, Email Resend)",
       "WordPress Integration",
       "Contract Management",
       "API Documentation",
@@ -306,12 +352,12 @@ app.get("/api/docs", (req, res) => {
 // Database health check endpoint
 app.get("/api/db-health", async (req, res) => {
   const mongoose = require('mongoose');
-  
+
   try {
     // Test database connection with a simple operation
     const adminDb = mongoose.connection.db.admin();
     const result = await adminDb.ping();
-    
+
     res.json({
       success: true,
       message: "Database connection is healthy",
@@ -343,7 +389,7 @@ app.get("/api/info", (req, res) => {
     endpoints: {
       auth: [
         "POST /api/auth/register",
-        "POST /api/auth/login", 
+        "POST /api/auth/login",
         "POST /api/auth/forgot-password",
         "GET /api/auth/profile"
       ],
@@ -353,7 +399,7 @@ app.get("/api/info", (req, res) => {
       ],
       packages: [
         "GET /api/basic/*",
-        "GET /api/diamond/*", 
+        "GET /api/diamond/*",
         "GET /api/infinity/*",
         "GET /api/package/features"
       ],
@@ -370,20 +416,20 @@ app.get("/api/info", (req, res) => {
     },
     packages: {
       Basic: { price: "$35/month", features: ["Education", "Community", "Basic Alerts"] },
-      Diamond: { price: "$76/month", features: ["AI Advisor", "Live Streams", "Premium Alerts"] }, 
+      Diamond: { price: "$76/month", features: ["AI Advisor", "Live Streams", "Premium Alerts"] },
       Infinity: { price: "$99/month", features: ["All Diamond Features", "VIP Support", "Advanced Tools"] },
       Script: { price: "$29/month", features: ["Trading Scripts", "Technical Analysis"] }
     },
     security: [
       "JWT Authentication",
       "Password Hashing (bcrypt)",
-      "Rate Limiting", 
+      "Rate Limiting",
       "CORS Protection",
       "Helmet Security Headers",
       "Input Validation"
     ],
     techStack: [
-      "Node.js", "Express.js", "MongoDB", "Mongoose", 
+      "Node.js", "Express.js", "MongoDB", "Mongoose",
       "JWT", "Stripe API", "PayPal API",
       "bcrypt", "CORS", "Helmet", "Vercel"
     ]

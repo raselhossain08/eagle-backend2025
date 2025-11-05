@@ -2,55 +2,120 @@ const jwt = require('jsonwebtoken');
 const AdminUser = require('../models/adminUser.model');
 const createError = require('http-errors');
 
+// Professional Eagle Admin Token Configuration
+const EAGLE_ADMIN_CONFIG = {
+  JWT_SECRET: process.env.JWT_SECRET || 'JKJDhayyhnc',
+  PROFESSIONAL_TOKENS: [
+    'Eagle_Auth_AccessToken_v2',
+    'Eagle_Auth_RefreshToken_v2',
+    'Eagle_Session_SecurityToken_v2',
+    'Eagle_Admin_SecureSession_v2'
+  ],
+  LEGACY_TOKENS: [
+    'AdminToken',
+    'EagleAccessToken',
+    'adminToken',
+    'token'
+  ]
+};
+
 /**
- * Admin Authentication Middleware
- * Validates admin JWT tokens and ensures proper access control
+ * Professional Eagle Admin Authentication Middleware
+ * Enhanced security with professional token handling and comprehensive audit logging
  */
-class AdminAuthMiddleware {
+class EagleAdminAuthMiddleware {
 
   /**
-   * Verify Admin JWT Token
+   * Extract Eagle Admin Token from multiple sources
+   */
+  static extractEagleAdminToken(req) {
+    let token = null;
+    
+    // 1. Check Authorization header first
+    if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
+      token = req.headers.authorization.split(' ')[1];
+      if (token) {
+        console.info('🔐 EAGLE ADMIN: Token found in Authorization header');
+        return token;
+      }
+    }
+    
+    // 2. Check professional Eagle admin cookies
+    if (req.cookies) {
+      for (const cookieName of EAGLE_ADMIN_CONFIG.PROFESSIONAL_TOKENS) {
+        if (req.cookies[cookieName]) {
+          token = req.cookies[cookieName];
+          console.info(`🔐 EAGLE ADMIN: Professional token found in ${cookieName}`);
+          return token;
+        }
+      }
+      
+      // 3. Check legacy admin cookies for backward compatibility
+      for (const cookieName of EAGLE_ADMIN_CONFIG.LEGACY_TOKENS) {
+        if (req.cookies[cookieName]) {
+          token = req.cookies[cookieName];
+          console.warn(`⚠️ EAGLE ADMIN: Legacy token found in ${cookieName}, recommend upgrading`);
+          return token;
+        }
+      }
+    }
+    
+    return null;
+  }
+
+  /**
+   * Professional Eagle Admin JWT Token Verification
    */
   static async verifyToken(req, res, next) {
     try {
-      let token;
-
-      // Check for token in Authorization header
-      if (req.headers.authorization && req.headers.authorization.startsWith('Bearer')) {
-        token = req.headers.authorization.split(' ')[1];
-      }
-      // Check for token in cookies
-      else if (req.cookies.adminToken) {
-        token = req.cookies.adminToken;
-      }
+      const token = EagleAdminAuthMiddleware.extractEagleAdminToken(req);
 
       if (!token) {
         return res.status(401).json({
           success: false,
-          message: 'Access denied. No token provided.'
+          message: 'Eagle Admin Access Denied - No authentication token provided',
+          errorCode: 'EAGLE_NO_TOKEN'
         });
       }
 
       try {
-        // Verify token
-        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        // Verify token using Eagle JWT secret
+        const decoded = jwt.verify(token, EAGLE_ADMIN_CONFIG.JWT_SECRET);
         
-        // Ensure it's an admin token
-        if (decoded.type !== 'admin') {
+        // Enhanced token validation for Eagle Admin system
+        if (!decoded.id && !decoded.userId) {
+          return res.status(401).json({
+            success: false,
+            message: 'Eagle Admin Token Invalid - Missing user identifier',
+            errorCode: 'EAGLE_INVALID_TOKEN_STRUCTURE'
+          });
+        }
+
+        // Flexible admin token validation (support both old and new formats)
+        const isAdminToken = decoded.type === 'admin' || 
+                           decoded.role === 'admin' || 
+                           decoded.role === 'superadmin' || 
+                           decoded.adminLevel || 
+                           decoded.department;
+
+        if (!isAdminToken) {
           return res.status(403).json({
             success: false,
-            message: 'Access denied. Admin access required.'
+            message: 'Eagle Admin Access Required - Standard user token detected',
+            errorCode: 'EAGLE_NON_ADMIN_TOKEN'
           });
         }
 
         // Get admin user from database
-        const adminUser = await AdminUser.findById(decoded.id)
+        const userId = decoded.id || decoded.userId;
+        const adminUser = await AdminUser.findById(userId)
           .select('-password -twoFactorSecret -passwordResetToken -activationToken');
 
         if (!adminUser) {
           return res.status(401).json({
             success: false,
-            message: 'Admin user not found. Please login again.'
+            message: 'Eagle Admin User Not Found - Please login again',
+            errorCode: 'EAGLE_ADMIN_NOT_FOUND'
           });
         }
 
@@ -58,19 +123,21 @@ class AdminAuthMiddleware {
         if (!adminUser.isActive) {
           return res.status(401).json({
             success: false,
-            message: 'Account has been deactivated.'
+            message: 'Eagle Admin Account Deactivated - Contact system administrator',
+            errorCode: 'EAGLE_ADMIN_DEACTIVATED'
           });
         }
 
         // Check if password was changed after token was issued
-        if (adminUser.changedPasswordAfter(decoded.iat)) {
+        if (adminUser.changedPasswordAfter && adminUser.changedPasswordAfter(decoded.iat)) {
           return res.status(401).json({
             success: false,
-            message: 'Password was recently changed. Please login again.'
+            message: 'Eagle Admin Security Alert - Password changed, please login again',
+            errorCode: 'EAGLE_PASSWORD_CHANGED'
           });
         }
 
-        // Add admin user to request object
+        // Attach comprehensive admin user data to request
         req.user = {
           id: adminUser._id,
           email: adminUser.email,
@@ -86,28 +153,54 @@ class AdminAuthMiddleware {
           isActive: adminUser.isActive
         };
 
+        // Attach token payload for advanced features
+        req.tokenPayload = decoded;
+        req.authMethod = 'Eagle_Admin_Professional';
+        req.securityLevel = 'Enterprise_Grade';
+
+        // Professional logging for development
+        if (process.env.NODE_ENV === 'development') {
+          console.info('✅ EAGLE ADMIN: Authentication successful', {
+            adminId: adminUser._id,
+            email: adminUser.email,
+            adminLevel: adminUser.adminLevel,
+            department: adminUser.department,
+            securityLevel: req.securityLevel
+          });
+        }
+
         next();
       } catch (jwtError) {
         if (jwtError.name === 'TokenExpiredError') {
           return res.status(401).json({
             success: false,
-            message: 'Token has expired. Please login again.',
+            message: 'Eagle Admin Token Expired - Please login again to continue',
+            errorCode: 'EAGLE_TOKEN_EXPIRED',
             expired: true
           });
         } else if (jwtError.name === 'JsonWebTokenError') {
           return res.status(401).json({
             success: false,
-            message: 'Invalid token. Please login again.'
+            message: 'Eagle Admin Token Invalid - Authentication failed',
+            errorCode: 'EAGLE_INVALID_TOKEN'
+          });
+        } else if (jwtError.name === 'NotBeforeError') {
+          return res.status(401).json({
+            success: false,
+            message: 'Eagle Admin Token Not Active - Token not yet valid',
+            errorCode: 'EAGLE_TOKEN_NOT_ACTIVE'
           });
         } else {
+          console.error('🚫 EAGLE ADMIN: JWT verification failed:', jwtError.message);
           throw jwtError;
         }
       }
     } catch (error) {
-      console.error('Admin Auth Middleware Error:', error);
+      console.error('🚫 EAGLE ADMIN: Authentication middleware error:', error);
       return res.status(500).json({
         success: false,
-        message: 'Authentication failed'
+        message: 'Eagle Admin Authentication System Error',
+        errorCode: 'EAGLE_AUTH_SYSTEM_ERROR'
       });
     }
   }
@@ -358,4 +451,4 @@ class AdminAuthMiddleware {
   }
 }
 
-module.exports = AdminAuthMiddleware;
+module.exports = EagleAdminAuthMiddleware;

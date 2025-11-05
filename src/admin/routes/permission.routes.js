@@ -2,10 +2,10 @@ const express = require('express');
 const router = express.Router();
 const PermissionController = require('../controllers/permission.controller');
 const RBACMiddleware = require('../middlewares/rbac.middleware');
-const { protect } = require('../../middlewares/auth.middleware');
+const AdminAuthMiddleware = require('../middlewares/auth.middleware');
 
-// Apply authentication middleware to all routes
-router.use(protect);
+// Apply admin authentication middleware to all routes
+router.use(AdminAuthMiddleware.verifyToken);
 
 // Apply RBAC permissions injection
 router.use(RBACMiddleware.injectUserPermissions);

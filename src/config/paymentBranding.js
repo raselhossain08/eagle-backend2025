@@ -9,10 +9,10 @@ const PAYMENT_BRANDING = {
   businessLegalName: process.env.BUSINESS_LEGAL_NAME || "Eagle Investors LLC",
   supportEmail: process.env.BUSINESS_SUPPORT_EMAIL || "support@eagle-investors.com",
   website: process.env.BUSINESS_WEBSITE || "https://eagle-investors.com",
-  
+
   // Statement Descriptors (what appears on bank/credit card statements)
   statementDescriptor: process.env.PAYMENT_STATEMENT_DESCRIPTOR || "EAGLE INVESTORS",
-  
+
   // PayPal Specific Configuration
   paypal: {
     brandName: process.env.BUSINESS_NAME || "Eagle Investors",
@@ -21,7 +21,7 @@ const PAYMENT_BRANDING = {
     userAction: "PAY_NOW",
     logoUrl: process.env.BUSINESS_LOGO_URL || null, // Optional logo URL
   },
-  
+
   // Stripe Specific Configuration
   stripe: {
     statementDescriptor: process.env.PAYMENT_STATEMENT_DESCRIPTOR || "EAGLE INVESTORS",
@@ -31,26 +31,46 @@ const PAYMENT_BRANDING = {
       supportEmail: process.env.BUSINESS_SUPPORT_EMAIL || "support@eagle-investors.com",
     },
   },
-  
+
   // Product-specific payment descriptions
   getProductDescription: (productInfo, subscriptionType) => {
     const subscriptionText = subscriptionType === "yearly" ? "Annual" : "Monthly";
     return `${productInfo.name} - ${subscriptionText} Subscription`;
   },
-  
+
   // Bank statement descriptor suffix based on product
   getStatementDescriptorSuffix: (productName) => {
     const productMap = {
+      "Basic Package": "BASIC",
       "Basic Advisory": "BASIC",
-      "Diamond Advisory": "DIAMOND", 
+      "Diamond Package": "DIAMOND",
+      "Diamond Advisory": "DIAMOND",
+      "Infinity Package": "INFINITY",
       "Infinity Advisory": "INFINITY",
       "Script Package": "SCRIPTS",
+      "Script Package (Monthly)": "SCRIPTS",
+      "Script Package (Yearly)": "SCRIPTS",
       "Investment Advising": "ADVISOR",
+      "Trading Tutor": "TUTOR",
+      "Eagle Ultimate": "ULTIMATE",
+      "Eagle Premium Monthly": "PREMIUM",
+      "Eagle Premium Annual": "PREMIUM",
+      "Eagle Investors Subscriptions": "EAGLE",
     };
-    
-    return productMap[productName] || productName.substring(0, 10).toUpperCase();
+
+    // Return mapped value or safely create a default suffix
+    if (productMap[productName]) {
+      return productMap[productName];
+    }
+
+    // Safe fallback - handle undefined or null productName
+    if (!productName || typeof productName !== 'string') {
+      return "EAGLE";
+    }
+
+    return productName.substring(0, 10).toUpperCase().replace(/[^A-Z0-9]/g, '');
   },
-  
+
   // Return URLs for payment completion
   getReturnUrls: () => {
     const baseUrl = process.env.FRONTEND_URL || process.env.CLIENT_URL || "http://localhost:3000";
@@ -60,7 +80,7 @@ const PAYMENT_BRANDING = {
       error: `${baseUrl}/payment/error`,
     };
   },
-  
+
   // Customer service information for payment pages
   customerService: {
     phone: process.env.BUSINESS_PHONE || null,

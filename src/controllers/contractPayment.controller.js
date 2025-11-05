@@ -101,7 +101,7 @@ const handlePostPaymentUserAccount = async (contract) => {
       const existingUser = await User.findById(contract.userId);
       if (existingUser && !existingUser.isPendingUser) {
         console.log("✅ Contract already linked to active user:", existingUser.email);
-        return { 
+        return {
           status: 'existing_active_user',
           user: existingUser,
           message: 'Welcome back! Your subscription is now active.'
@@ -111,10 +111,10 @@ const handlePostPaymentUserAccount = async (contract) => {
 
     // Find or create user account
     let user = await User.findOne({ email: contract.email.toLowerCase() });
-    
+
     if (!user) {
       console.log("👤 No user found, creating new account for:", contract.email);
-      
+
       // Generate activation token for new account
       const activationToken = crypto.randomBytes(32).toString('hex');
       const activationTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
@@ -155,7 +155,7 @@ const handlePostPaymentUserAccount = async (contract) => {
 
     } else if (user.isPendingUser) {
       console.log("🔄 User exists as pending, updating activation for:", user.email);
-      
+
       // Update activation token for existing pending user
       user.activationToken = crypto.randomBytes(32).toString('hex');
       user.activationTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
@@ -187,7 +187,7 @@ const handlePostPaymentUserAccount = async (contract) => {
 
     } else {
       console.log("✅ User already exists and is active:", user.email);
-      
+
       // Update contract with user ID if not already set
       if (!contract.userId) {
         contract.userId = user._id;
@@ -529,7 +529,7 @@ exports.captureContractOrder = async (req, res) => {
       // Update user subscription based on product type (only for active users)
       const subscriptionMap = {
         basic: "Basic",
-        script: "Script", 
+        script: "Script",
         diamond: "Diamond",
         infinity: "Infinity",
         "investment-advising": "Diamond",
@@ -538,7 +538,7 @@ exports.captureContractOrder = async (req, res) => {
       };
 
       const newSubscription = subscriptionMap[normalizedProductType];
-      
+
       // Update user subscription if user exists and is active
       if (accountResult.user && !accountResult.user.isPendingUser && newSubscription) {
         await User.findByIdAndUpdate(accountResult.user._id, {
@@ -706,19 +706,27 @@ exports.createStripePaymentIntent = async (req, res) => {
 
     // Get the price based on subscription type, handling different pricing structures
     let price;
+    let productName;
+
     if (typeof productInfo.monthly === "object") {
       // For products with nested pricing structure (script, investment-advising, etc.)
       price =
         subscriptionType === "yearly"
           ? parseFloat(productInfo.yearly.price)
           : parseFloat(productInfo.monthly.price);
+      productName =
+        subscriptionType === "yearly"
+          ? productInfo.yearly.name
+          : productInfo.monthly.name;
     } else {
       // For products with direct pricing (basic, diamond, infinity)
       price =
         subscriptionType === "yearly"
           ? productInfo.yearly
           : productInfo.monthly;
+      productName = productInfo.name;
     }
+
     const subscriptionTypeText =
       subscriptionType === "yearly" ? "Yearly" : "Monthly";
 
@@ -726,11 +734,16 @@ exports.createStripePaymentIntent = async (req, res) => {
     const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 
     // Create Stripe payment intent with proper branding
-    const productDescription = PAYMENT_BRANDING.getProductDescription(productInfo, subscriptionType);
-    const statementSuffix = PAYMENT_BRANDING.getStatementDescriptorSuffix(productInfo.name);
+    const productDescription = PAYMENT_BRANDING.getProductDescription(
+      { name: productName || productInfo.name || "Eagle Subscription" },
+      subscriptionType
+    );
+    const statementSuffix = PAYMENT_BRANDING.getStatementDescriptorSuffix(
+      productName || productInfo.name || "EAGLE"
+    );
 
     // Get email for receipt - from authenticated user or contract
-    const receiptEmail = PAYMENT_BRANDING.stripe.receiptEmail 
+    const receiptEmail = PAYMENT_BRANDING.stripe.receiptEmail
       ? (req.user ? req.user.email : (contract.email && contract.email.trim() ? contract.email.trim() : null))
       : null;
 
@@ -886,7 +899,7 @@ exports.confirmStripePayment = async (req, res) => {
     };
 
     const newSubscription = subscriptionMap[normalizedProductType];
-    
+
     // Update user subscription if user exists and is active
     if (accountResult.user && !accountResult.user.isPendingUser && newSubscription) {
       await User.findByIdAndUpdate(accountResult.user._id, {
