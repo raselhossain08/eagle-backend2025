@@ -81,28 +81,10 @@ initializeApp();
 // Global Middleware
 // -----------------------------
 
-// Security headers with CORS configuration
-app.use(helmet({
-  crossOriginEmbedderPolicy: false,
-  crossOriginResourcePolicy: { policy: "cross-origin" },
-  contentSecurityPolicy: process.env.NODE_ENV === 'production' ? {
-    directives: {
-      defaultSrc: ["'self'"],
-      styleSrc: ["'self'", "'unsafe-inline'", "https://cdnjs.cloudflare.com"],
-      scriptSrc: ["'self'", "'unsafe-inline'"],
-      fontSrc: ["'self'", "https://cdnjs.cloudflare.com"],
-      imgSrc: ["'self'", "data:", "https:"],
-      connectSrc: ["'self'", "*"]
-    },
-  } : false, // Disable CSP in development for easier testing
-}));
-
+// CORS must be applied BEFORE helmet to avoid conflicts
 // CORS configuration to allow API access from all origins
 const corsOptions = {
-  origin: function (origin, callback) {
-    // Allow all origins
-    callback(null, true);
-  },
+  origin: true, // Allow all origins
   credentials: true, // Allow cookies and authorization headers
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
   allowedHeaders: [
@@ -125,7 +107,8 @@ const corsOptions = {
     'Content-Range',
     'X-Content-Range'
   ],
-  maxAge: 86400 // 24 hours
+  maxAge: 86400, // 24 hours
+  optionsSuccessStatus: 200 // Some legacy browsers choke on 204
 };
 
 app.use(cors(corsOptions));
@@ -135,23 +118,35 @@ app.options('*', cors(corsOptions));
 
 // Additional CORS headers middleware for maximum compatibility
 app.use((req, res, next) => {
-  // Allow any origin
-  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
+  const origin = req.headers.origin;
+  if (origin) {
+    res.header('Access-Control-Allow-Origin', origin);
+  } else {
+    res.header('Access-Control-Allow-Origin', '*');
+  }
   res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS, HEAD');
   res.header('Access-Control-Allow-Headers',
     'Origin, X-Requested-With, Content-Type, Accept, Authorization, X-API-Key, Cache-Control, Access-Control-Allow-Credentials'
   );
   res.header('Access-Control-Expose-Headers', 'Authorization, Content-Range, X-Content-Range');
+  res.header('Access-Control-Max-Age', '86400');
 
   // Handle preflight requests
   if (req.method === 'OPTIONS') {
-    res.status(200).end();
-    return;
+    return res.status(200).end();
   }
 
   next();
 });
+
+// Security headers with CORS configuration
+app.use(helmet({
+  crossOriginEmbedderPolicy: false,
+  crossOriginResourcePolicy: { policy: "cross-origin" },
+  crossOriginOpenerPolicy: { policy: "unsafe-none" },
+  contentSecurityPolicy: false, // Disable CSP to avoid CORS conflicts
+}));
 
 // Request logging
 if (process.env.NODE_ENV !== "test") {
