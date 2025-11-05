@@ -41,6 +41,7 @@ const { transactionRoutes } = require("./transaction");
 
 const errorHandler = require("./middlewares/errorHandler");
 const requestLogger = require("./middlewares/requestLogger");
+const config = require("./config/environment");
 const dotenv = require("dotenv");
 
 // Load environment variables
@@ -82,9 +83,32 @@ initializeApp();
 // -----------------------------
 
 // CORS must be applied BEFORE helmet to avoid conflicts
-// CORS configuration to allow API access from all origins
+// CORS configuration to allow API access from frontend and other allowed origins
 const corsOptions = {
-  origin: true, // Allow all origins
+  origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
+
+    const allowedOrigins = [
+      config.CLIENT_URL, // Frontend URL from .env
+      'http://localhost:3000', // Development frontend
+      'http://localhost:3001', // Alternative dev port
+      'https://eagle-investors.com', // Production domain
+      'https://www.eagle-investors.com' // Production domain with www
+    ];
+
+    // In development, allow all localhost origins
+    if (config.NODE_ENV === 'development' && origin.includes('localhost')) {
+      return callback(null, true);
+    }
+
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.log(`❌ CORS blocked origin: ${origin}`);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true, // Allow cookies and authorization headers
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
   allowedHeaders: [
@@ -265,9 +289,14 @@ app.get("/api/health", async (req, res) => {
     message: "Eagle Backend API is running",
     timestamp: new Date().toISOString(),
     version: "1.0.0",
-    environment: process.env.NODE_ENV || "development",
+    environment: config.NODE_ENV,
     uptime: process.uptime(),
     memory: process.memoryUsage(),
+    urls: {
+      app: config.APP_URL,
+      client: config.CLIENT_URL,
+      current: `${req.protocol}://${req.get('host')}`
+    },
     database: {
       status: dbStatus,
       error: dbError,
@@ -275,7 +304,7 @@ app.get("/api/health", async (req, res) => {
     },
     cors: {
       enabled: true,
-      allowAllOrigins: true,
+      clientUrl: config.CLIENT_URL,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
       credentials: true
     },
@@ -290,7 +319,7 @@ app.get("/api/health", async (req, res) => {
       "WordPress Integration",
       "Contract Management",
       "API Documentation",
-      "CORS Enabled for All Origins"
+      "Configured CORS for Frontend"
     ]
   });
 });

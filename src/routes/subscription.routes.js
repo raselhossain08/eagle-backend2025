@@ -11,6 +11,9 @@ const {
   getDueForRenewal
 } = require("../subscription/controllers");
 
+// Import subscriber controller for listing subscriptions
+const subscriberController = require("../subscription/controllers/subscriber.controller");
+
 /**
  * @swagger
  * tags:
@@ -19,6 +22,9 @@ const {
  */
 
 router.use(protect); // Protect all subscription routes
+
+// GET /api/subscription - List all subscriptions with pagination
+router.get("/", subscriberController.getSubscribers);
 
 router.get("/status", getSubscriptionStatus);
 router.get("/due-for-renewal", getDueForRenewal);
