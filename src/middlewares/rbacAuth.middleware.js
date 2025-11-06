@@ -11,8 +11,8 @@ const jwt = require('jsonwebtoken');
 exports.authRBAC = async (req, res, next) => {
   try {
     // Get token from header
-    const token = req.header('Authorization')?.replace('Bearer ', '') || 
-                 req.cookies?.token;
+    const token = req.header('Authorization')?.replace('Bearer ', '') ||
+      req.cookies?.token;
 
     if (!token) {
       return res.status(401).json({
@@ -23,11 +23,20 @@ exports.authRBAC = async (req, res, next) => {
 
     // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    
-    // Get user data (implement based on your user system)
-    const User = require('../models/user.model');
-    const user = await User.findById(decoded.id);
-    
+
+    // Try to get admin user first, then fall back to regular user
+    const AdminUser = require('../admin/models/adminUser.model');
+    const User = require('../user/models/user.model');
+
+    let user = await AdminUser.findById(decoded.id);
+    let isAdmin = true;
+
+    if (!user) {
+      // Try regular user model
+      user = await User.findById(decoded.id);
+      isAdmin = false;
+    }
+
     if (!user) {
       return res.status(401).json({
         success: false,
@@ -37,8 +46,16 @@ exports.authRBAC = async (req, res, next) => {
 
     // Set user info in request
     req.user = user;
-    req.user.roles = user.roles || ['user']; // Default role if not specified
-    
+
+    // Set roles based on user type
+    if (isAdmin) {
+      // Admin users: use adminLevel as role
+      req.user.roles = [user.adminLevel];
+    } else {
+      // Regular users: use role field
+      req.user.roles = [user.role || 'user'];
+    }
+
     next();
   } catch (error) {
     console.error('RBAC Auth Error:', error);
@@ -52,6 +69,7 @@ exports.authRBAC = async (req, res, next) => {
 
 /**
  * Require specific roles
+ * Note: super_admin role automatically has access to all routes
  */
 exports.requireRole = (allowedRoles) => {
   return (req, res, next) => {
@@ -65,6 +83,12 @@ exports.requireRole = (allowedRoles) => {
       }
 
       const userRoles = Array.isArray(req.user.roles) ? req.user.roles : [req.user.roles];
+
+      // super_admin has access to everything
+      if (userRoles.includes('super_admin')) {
+        return next();
+      }
+
       const hasRequiredRole = allowedRoles.some(role => userRoles.includes(role));
 
       if (!hasRequiredRole) {

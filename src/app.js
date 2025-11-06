@@ -14,11 +14,16 @@ const subscriptionRoutes = require("./routes/subscription.routes");
 const paymentRoutes = require("./routes/payment.routes");
 const paypalRoutes = require("./routes/paypalRoutes");
 const contractRoutes = require("./routes/contracts.routes"); // Updated to use combined routes
+const contractTemplatesRoutes = require("./routes/contractTemplates.routes"); // Dedicated template routes
 const packageRoutes = require("./routes/package.routes");
 const basicRoutes = require("./routes/basic.routes");
 const functionRoutes = require("./routes/function.routes");
 const analyticsRoutes = require("./analytics/routes/analytics.routes");
 const rbacRoutes = require("./admin/routes/index");
+const systemSettingsRoutes = require("./admin/routes/systemSettings.routes");
+
+// User Module Routes (Public User Management + Admin User Management)
+const userModuleRoutes = require("./user/routes/index");
 
 // Comprehensive Payment Module Routes
 const billingRoutes = require("./payment/routes/billing.routes");
@@ -27,6 +32,7 @@ const dunningRoutes = require("./payment/routes/dunning.routes");
 const financeRoutes = require("./payment/routes/finance.routes");
 const taxRoutes = require("./payment/routes/tax.routes");
 const paymentProcessorsRoutes = require("./payment/routes/paymentProcessors.routes");
+const invoicesRoutes = require("./payment/routes/invoices.routes");
 const supportRoutes = require("./support/routes/index");
 const integrationRoutes = require("./integrations/routes/index");
 
@@ -59,18 +65,24 @@ const initializeApp = async () => {
     // Additional verification that connection is ready
     const mongoose = require('mongoose');
     if (mongoose.connection.readyState === 1) {
+      console.log("✅ MongoDB connection state: Connected");
     } else {
+      console.log(`⚠️  MongoDB connection state: ${mongoose.connection.readyState}`);
     }
 
   } catch (error) {
-
+    console.error("❌ Database connection failed:", error.message);
+    console.error("Stack trace:", error.stack);
 
     // For development, try to reconnect
     if (process.env.NODE_ENV !== 'production') {
+      console.log("🔄 Retrying database connection in 5 seconds...");
       setTimeout(() => {
-
         initializeApp();
       }, 5000);
+    } else {
+      console.error("💥 Exiting due to database connection failure in production");
+      process.exit(1);
     }
   }
 };
@@ -233,20 +245,29 @@ app.use("/api/subscription", subscriptionRoutes); // Legacy subscription routes
 app.use("/api/payment", paymentRoutes);
 app.use("/api/paypal", paypalRoutes);
 app.use("/api/contracts", contractRoutes);
+app.use("/api/contract-templates", contractTemplatesRoutes); // Direct template access
 app.use("/api/package", packageRoutes);
 app.use("/api/basics", basicRoutes);
 app.use("/api/functions", functionRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/admin", rbacRoutes);
+app.use("/api/rbac", rbacRoutes); // Alias for admin/RBAC routes
+app.use("/api/system-settings", systemSettingsRoutes); // System settings (public + admin)
+
+// User Module Routes - Public User Management + Admin Dashboard
+app.use("/api/users", userModuleRoutes);
 
 // Comprehensive Payment Module Routes
 app.use("/api/billing", billingRoutes);
 app.use("/api/discounts", discountRoutes);
 app.use("/api/payments/discounts", discountRoutes); // Alias for payment path
+// Compatibility alias for older frontend calls that expect /api/payment/discount
+app.use("/api/payment/discount", discountRoutes);
 app.use("/api/dunning", dunningRoutes);
 app.use("/api/finance", financeRoutes);
 app.use("/api/tax", taxRoutes);
 app.use("/api/payment-processors", paymentProcessorsRoutes);
+app.use("/api/invoices", invoicesRoutes); // Invoice management routes
 app.use("/api/support", supportRoutes);
 app.use("/api/integrations", integrationRoutes);
 

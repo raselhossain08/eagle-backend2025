@@ -1,4 +1,4 @@
-const PublicUser = require("../models/user.model");
+const User = require("../models/user.model");
 const mongoose = require("mongoose");
 
 // @desc    Get all users (Admin Dashboard)

@@ -320,7 +320,7 @@ class RBACUtils {
    */
   static async auditUserPermissions(userId) {
     try {
-      const user = await require('../../models/user.model').findById(userId);
+      const user = await require('../../user/models/user.model').findById(userId);
       if (!user) {
         return { error: 'User not found' };
       }

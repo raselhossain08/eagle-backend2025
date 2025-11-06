@@ -1,6 +1,5 @@
 const { validationResult } = require('express-validator');
-const User = require('../../models/user.model');
-const AdminUser = require('../../admin/models/adminUser.model');
+const User = require('../../user/models/user.model');
 const Subscription = require('../models/subscription.model');
 const MembershipPlan = require('../models/membershipPlan.model');
 const AuditLog = require('../../admin/models/auditLog.model');

@@ -1,11 +1,13 @@
 const jwt = require("jsonwebtoken");
-const User = require("../models/user.model");
+const User = require("../user/models/user.model");
+const AdminUser = require("../admin/models/adminUser.model");
 const createError = require("http-errors");
 
 // Professional Eagle token configuration
 const EAGLE_TOKEN_CONFIG = {
   JWT_SECRET: process.env.JWT_SECRET || 'JKJDhayyhnc',
   COOKIE_NAMES: [
+    'admin_token',                          // Primary token used by frontend
     'Eagle_Auth_AccessToken_v2',
     'Eagle_Auth_RefreshToken_v2',
     'Eagle_Session_SecurityToken_v2',
@@ -14,6 +16,7 @@ const EAGLE_TOKEN_CONFIG = {
   LEGACY_COOKIE_NAMES: [
     'AdminToken',
     'EagleAccessToken',
+    'adminToken',                           // Legacy token manager name
     'token'
   ]
 };
@@ -23,7 +26,7 @@ const EAGLE_TOKEN_CONFIG = {
  */
 function extractEagleToken(req) {
   let token = null;
-  
+
   // 1. Check Authorization header first
   if (req.headers.authorization && req.headers.authorization.startsWith("Bearer")) {
     token = req.headers.authorization.split(" ")[1];
@@ -32,7 +35,7 @@ function extractEagleToken(req) {
       return token;
     }
   }
-  
+
   // 2. Check professional Eagle cookies
   if (req.cookies) {
     for (const cookieName of EAGLE_TOKEN_CONFIG.COOKIE_NAMES) {
@@ -42,7 +45,7 @@ function extractEagleToken(req) {
         return token;
       }
     }
-    
+
     // 3. Check legacy cookie names for backward compatibility
     for (const cookieName of EAGLE_TOKEN_CONFIG.LEGACY_COOKIE_NAMES) {
       if (req.cookies[cookieName]) {
@@ -52,7 +55,7 @@ function extractEagleToken(req) {
       }
     }
   }
-  
+
   return null;
 }
 
@@ -78,27 +81,62 @@ exports.protect = async (req, res, next) => {
 
       // Get user from token and attach to request
       const userId = decoded.id || decoded.userId;
-      const currentUser = await User.findById(userId).select("-password");
+
+      // Check if this is an admin token (based on token type or adminLevel)
+      const isAdminToken = decoded.type === 'admin' || decoded.adminLevel;
+
+      let currentUser;
+
+      if (isAdminToken) {
+        // Look in AdminUser model for admin tokens
+        currentUser = await AdminUser.findById(userId).select("-password");
+
+        if (process.env.NODE_ENV === 'development') {
+          console.info('🔐 EAGLE AUTH: Looking up admin user', { userId, adminLevel: decoded.adminLevel });
+        }
+      } else {
+        // Look in regular User model for regular user tokens
+        currentUser = await User.findById(userId).select("-password");
+
+        if (process.env.NODE_ENV === 'development') {
+          console.info('🔐 EAGLE AUTH: Looking up regular user', { userId });
+        }
+      }
 
       if (!currentUser) {
-        throw createError(401, "Eagle Authentication Failed - User account not found");
+        const userType = isAdminToken ? 'Admin' : 'User';
+        throw createError(401, `Eagle Authentication Failed - ${userType} account not found`);
       }
 
       // Attach professional user data to request
       req.user = currentUser;
       req.tokenPayload = decoded; // Include token payload for advanced features
       req.authMethod = 'Eagle_Professional_Token';
-      
+
+      // Map adminLevel to role for admin users (for RBAC compatibility)
+      if (isAdminToken && currentUser.adminLevel) {
+        // Map admin levels to role for restrictTo middleware
+        const adminLevelToRoleMap = {
+          'super_admin': 'admin',
+          'finance_admin': 'admin',
+          'growth_marketing': 'manager',
+          'support': 'manager',
+          'read_only': 'viewer'
+        };
+        req.user.role = adminLevelToRoleMap[currentUser.adminLevel] || 'viewer';
+      }
+
       // Log successful authentication in development
       if (process.env.NODE_ENV === 'development') {
         console.info('✅ EAGLE AUTH: User authenticated successfully', {
           userId: currentUser._id,
           email: currentUser.email,
           role: currentUser.role,
+          adminLevel: currentUser.adminLevel,
           authMethod: req.authMethod
         });
       }
-      
+
       next();
     } catch (error) {
       if (error.name === "TokenExpiredError") {
@@ -129,11 +167,11 @@ exports.optionalAuth = async (req, res, next) => {
       req.user = null;
       req.authMethod = 'Guest_Session';
       req.isGuest = true;
-      
+
       if (process.env.NODE_ENV === 'development') {
         console.info('👤 EAGLE AUTH: Continuing as guest user');
       }
-      
+
       return next();
     }
 
@@ -143,18 +181,28 @@ exports.optionalAuth = async (req, res, next) => {
 
       // Get user from token and attach to request
       const userId = decoded.id || decoded.userId;
-      const currentUser = await User.findById(userId).select("-password");
+
+      // Check if this is an admin token
+      const isAdminToken = decoded.type === 'admin' || decoded.adminLevel;
+
+      let currentUser;
+
+      if (isAdminToken) {
+        currentUser = await AdminUser.findById(userId).select("-password");
+      } else {
+        currentUser = await User.findById(userId).select("-password");
+      }
 
       if (!currentUser) {
         // User no longer exists, continue as guest
         req.user = null;
         req.authMethod = 'Invalid_User_Session';
         req.isGuest = true;
-        
+
         if (process.env.NODE_ENV === 'development') {
           console.warn('⚠️ EAGLE AUTH: User not found, continuing as guest');
         }
-        
+
         return next();
       }
 
@@ -163,14 +211,26 @@ exports.optionalAuth = async (req, res, next) => {
       req.tokenPayload = decoded;
       req.authMethod = 'Eagle_Optional_Auth';
       req.isGuest = false;
-      
+
+      // Map adminLevel to role for admin users (for RBAC compatibility)
+      if (isAdminToken && currentUser.adminLevel) {
+        const adminLevelToRoleMap = {
+          'super_admin': 'admin',
+          'finance_admin': 'admin',
+          'growth_marketing': 'manager',
+          'support': 'manager',
+          'read_only': 'viewer'
+        };
+        req.user.role = adminLevelToRoleMap[currentUser.adminLevel] || 'viewer';
+      }
+
       if (process.env.NODE_ENV === 'development') {
         console.info('✅ EAGLE AUTH: Optional authentication successful', {
           userId: currentUser._id,
           email: currentUser.email
         });
       }
-      
+
       next();
     } catch (error) {
       // Token invalid or expired, continue as guest with error context
@@ -178,11 +238,11 @@ exports.optionalAuth = async (req, res, next) => {
       req.authMethod = 'Failed_Token_Session';
       req.isGuest = true;
       req.authError = error.message;
-      
+
       if (process.env.NODE_ENV === 'development') {
         console.warn('⚠️ EAGLE AUTH: Token validation failed, continuing as guest:', error.message);
       }
-      
+
       next();
     }
   } catch (err) {
@@ -198,7 +258,7 @@ exports.restrictTo = (...roles) => {
     if (!req.user) {
       return next(createError(401, "Eagle Authentication Required - Please login"));
     }
-    
+
     if (!roles.includes(req.user.role)) {
       if (process.env.NODE_ENV === 'development') {
         console.warn('🚫 EAGLE RBAC: Access denied', {
@@ -207,17 +267,17 @@ exports.restrictTo = (...roles) => {
           userId: req.user._id
         });
       }
-      
+
       return next(createError(403, `Eagle Access Denied - Role '${req.user.role}' insufficient. Required: ${roles.join(', ')}`));
     }
-    
+
     if (process.env.NODE_ENV === 'development') {
       console.info('✅ EAGLE RBAC: Access granted', {
         userRole: req.user.role,
         userId: req.user._id
       });
     }
-    
+
     next();
   };
 };
@@ -230,10 +290,10 @@ exports.requireAdminLevel = (...adminLevels) => {
     if (!req.user) {
       return next(createError(401, "Eagle Authentication Required - Please login"));
     }
-    
+
     // Check if user has admin level in token payload
     const userAdminLevel = req.tokenPayload?.adminLevel || req.user.adminLevel;
-    
+
     if (!adminLevels.includes(userAdminLevel)) {
       if (process.env.NODE_ENV === 'development') {
         console.warn('🚫 EAGLE ADMIN: Admin access denied', {
@@ -242,17 +302,17 @@ exports.requireAdminLevel = (...adminLevels) => {
           userId: req.user._id
         });
       }
-      
+
       return next(createError(403, `Eagle Admin Access Denied - Level '${userAdminLevel}' insufficient. Required: ${adminLevels.join(', ')}`));
     }
-    
+
     if (process.env.NODE_ENV === 'development') {
       console.info('✅ EAGLE ADMIN: Admin access granted', {
         userAdminLevel,
         userId: req.user._id
       });
     }
-    
+
     next();
   };
 };
@@ -265,7 +325,7 @@ exports.requireSubscription = (...subscriptions) => {
     if (!req.user) {
       return next(createError(401, "Eagle Authentication Required - Please login"));
     }
-    
+
     if (!subscriptions.includes(req.user.subscription)) {
       if (process.env.NODE_ENV === 'development') {
         console.warn('🚫 EAGLE SUBSCRIPTION: Access denied', {
@@ -274,19 +334,19 @@ exports.requireSubscription = (...subscriptions) => {
           userId: req.user._id
         });
       }
-      
+
       return next(
         createError(403, `Eagle Subscription Access Denied - Current: '${req.user.subscription}', Required: ${subscriptions.join(', ')}`)
       );
     }
-    
+
     if (process.env.NODE_ENV === 'development') {
       console.info('✅ EAGLE SUBSCRIPTION: Access granted', {
         userSubscription: req.user.subscription,
         userId: req.user._id
       });
     }
-    
+
     next();
   };
 };
@@ -298,7 +358,7 @@ exports.adminOnly = (req, res, next) => {
   if (!req.user) {
     return next(createError(401, "Eagle Authentication Required - Please login"));
   }
-  
+
   if (req.user.role !== 'admin') {
     if (process.env.NODE_ENV === 'development') {
       console.warn('🚫 EAGLE ADMIN: Admin access denied', {
@@ -306,17 +366,17 @@ exports.adminOnly = (req, res, next) => {
         userId: req.user._id
       });
     }
-    
+
     return next(createError(403, `Eagle Admin Access Denied - Admin role required, current role: '${req.user.role}'`));
   }
-  
+
   if (process.env.NODE_ENV === 'development') {
     console.info('✅ EAGLE ADMIN: Admin access granted', {
       userRole: req.user.role,
       userId: req.user._id
     });
   }
-  
+
   next();
 };
 

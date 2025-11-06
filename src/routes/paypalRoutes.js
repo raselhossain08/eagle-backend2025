@@ -3,6 +3,7 @@ const router = express.Router();
 const {
   createOrder,
   captureOrder,
+  getAdminTransactions,
 } = require("../controllers/paypalController");
 const {
   createContractOrder,
@@ -10,7 +11,10 @@ const {
   createStripePaymentIntent,
   confirmStripePayment,
 } = require("../controllers/contractPayment.controller");
-const { protect, optionalAuth } = require("../middlewares/auth.middleware");
+const { protect, optionalAuth, restrictTo } = require("../middlewares/auth.middleware");
+
+// Admin routes (must come before other routes to avoid conflicts)
+router.get("/admin/transactions", protect, restrictTo("admin"), getAdminTransactions);
 
 // Legacy routes
 router.post("/create-order", createOrder);

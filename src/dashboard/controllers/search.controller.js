@@ -1,4 +1,4 @@
-const User = require("../models/user.model");
+const User = require("../user/models/user.model");
 const Notification = require("../models/Notification");
 // Note: Add other models as needed (Contract, Payment, etc.)
 

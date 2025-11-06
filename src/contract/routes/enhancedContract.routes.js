@@ -10,25 +10,27 @@ const {
   publishTemplate,
   getTemplateStatistics,
   cloneTemplate,
-  
+
   // Contract Signing
   initiateContractSigning,
   startSigningSession,
   collectSigningEvidence,
   submitSignature,
   getContractForSigning,
-  
+
   // Evidence & Compliance
   generateEvidencePackage,
   downloadEvidencePackage,
   getCertificateOfCompletion,
   verifyEvidenceIntegrity,
   getContractAuditTrail,
-  
+
   // Admin Controls
   voidContract,
   resendContract,
   searchContracts,
+  getAllContracts,
+  getAllSignatures,
   getContractAnalytics,
   handleProviderWebhook
 } = require('../controllers/enhancedContract.controller');
@@ -775,6 +777,162 @@ router.post('/initiate', authRBAC, requireRole(['admin', 'manager']), initiateCo
  *                     $ref: '#/components/schemas/SignedContract'
  */
 router.get('/search', authRBAC, requireRole(['admin', 'manager', 'support']), searchContracts);
+
+/**
+ * @swagger
+ * /api/contracts/all:
+ *   get:
+ *     summary: Get all contracts with pagination and filtering
+ *     tags: [Contract Management]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           description: Filter by status (or 'all')
+ *       - in: query
+ *         name: subscriberId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: templateId
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: sortBy
+ *         schema:
+ *           type: string
+ *           default: createdAt
+ *       - in: query
+ *         name: sortOrder
+ *         schema:
+ *           type: string
+ *           enum: [asc, desc]
+ *           default: desc
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: List of all contracts with statistics
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     contracts:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/SignedContract'
+ *                     pagination:
+ *                       type: object
+ *                     statistics:
+ *                       type: object
+ */
+router.get('/all', authRBAC, requireRole(['super_admin', 'admin', 'manager', 'support']), getAllContracts);
+
+/**
+ * @swagger
+ * /api/contracts/signatures:
+ *   get:
+ *     summary: Get all signatures across all contracts
+ *     tags: [Contract Management]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           description: Filter by contract status
+ *       - in: query
+ *         name: contractId
+ *         schema:
+ *           type: string
+ *           description: Filter by specific contract ID
+ *       - in: query
+ *         name: signerEmail
+ *         schema:
+ *           type: string
+ *           description: Filter by signer email
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *           description: Search in signer name, email, template ID, or subscriber ID
+ *       - in: query
+ *         name: sortBy
+ *         schema:
+ *           type: string
+ *           default: signedAt
+ *       - in: query
+ *         name: sortOrder
+ *         schema:
+ *           type: string
+ *           enum: [asc, desc]
+ *           default: desc
+ *     responses:
+ *       200:
+ *         description: List of all signatures with statistics
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     signatures:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           contractId:
+ *                             type: string
+ *                           templateId:
+ *                             type: string
+ *                           subscriberId:
+ *                             type: string
+ *                           contractStatus:
+ *                             type: string
+ *                           signer:
+ *                             type: object
+ *                     pagination:
+ *                       type: object
+ *                     statistics:
+ *                       type: object
+ */
+router.get('/signatures', authRBAC, requireRole(['super_admin', 'admin', 'manager', 'support']), getAllSignatures);
 
 /**
  * @swagger

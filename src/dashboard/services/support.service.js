@@ -1,5 +1,5 @@
 const SupportTicket = require('../models/supportTicket.model');
-const User = require('../models/user.model');
+const User = require('../user/models/user.model');
 const mongoose = require('mongoose');
 
 class SupportService {

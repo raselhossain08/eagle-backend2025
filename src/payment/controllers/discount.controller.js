@@ -22,49 +22,45 @@ const getDiscountStats = async (req, res) => {
       ]
     });
 
-    // Total redemptions (from usage history)
-    const totalRedemptions = await Discount.aggregate([
-      { $unwind: '$usageHistory' },
-      { $count: 'total' }
-    ]);
+    // Total redemptions from DiscountRedemption collection
+    const totalRedemptions = await DiscountRedemption.countDocuments({
+      status: 'completed'
+    });
 
     // Recent redemptions for change calculation
-    const recentRedemptions = await Discount.aggregate([
-      { $unwind: '$usageHistory' },
-      { $match: { 'usageHistory.appliedAt': { $gte: thirtyDaysAgo } } },
-      { $count: 'total' }
-    ]);
+    const recentRedemptions = await DiscountRedemption.countDocuments({
+      status: 'completed',
+      createdAt: { $gte: thirtyDaysAgo }
+    });
 
-    // Revenue impact calculation
-    const revenueImpact = await Discount.aggregate([
-      { $unwind: '$usageHistory' },
-      { $group: { _id: null, total: { $sum: '$usageHistory.discountAmount' } } }
+    // Revenue impact calculation from DiscountRedemption collection
+    const revenueImpactData = await DiscountRedemption.aggregate([
+      { $match: { status: 'completed' } },
+      { $group: { _id: null, total: { $sum: '$discountAmount' } } }
     ]);
 
     // Recent revenue impact
-    const recentRevenueImpact = await Discount.aggregate([
-      { $unwind: '$usageHistory' },
-      { $match: { 'usageHistory.appliedAt': { $gte: thirtyDaysAgo } } },
-      { $group: { _id: null, total: { $sum: '$usageHistory.discountAmount' } } }
+    const recentRevenueImpactData = await DiscountRedemption.aggregate([
+      { $match: { status: 'completed', createdAt: { $gte: thirtyDaysAgo } } },
+      { $group: { _id: null, total: { $sum: '$discountAmount' } } }
     ]);
 
     // Calculate conversion rate (approximate)
     const totalSubscriptions = await Subscription.countDocuments();
-    const subscriptionsWithDiscounts = await Discount.aggregate([
-      { $unwind: '$usageHistory' },
-      { $group: { _id: '$usageHistory.subscriptionId' } },
-      { $count: 'total' }
-    ]);
+    const subscriptionsWithDiscounts = await DiscountRedemption.distinct('subscriptionId', {
+      status: 'completed',
+      subscriptionId: { $exists: true, $ne: null }
+    });
 
     const conversionRate = totalSubscriptions > 0
-      ? ((subscriptionsWithDiscounts[0]?.total || 0) / totalSubscriptions * 100)
+      ? ((subscriptionsWithDiscounts.length || 0) / totalSubscriptions * 100)
       : 0;
 
     // Calculate percentage changes
-    const totalRedemptionsCount = totalRedemptions[0]?.total || 0;
-    const recentRedemptionsCount = recentRedemptions[0]?.total || 0;
-    const totalRevenue = revenueImpact[0]?.total || 0;
-    const recentRevenue = recentRevenueImpact[0]?.total || 0;
+    const totalRedemptionsCount = totalRedemptions;
+    const recentRedemptionsCount = recentRedemptions;
+    const totalRevenue = revenueImpactData[0]?.total || 0;
+    const recentRevenue = recentRevenueImpactData[0]?.total || 0;
 
     // Simple percentage calculation (this would be more sophisticated in production)
     const redemptionChange = recentRedemptionsCount > 0 ? '+15.3%' : '0%';
@@ -164,7 +160,7 @@ const getDiscounts = async (req, res) => {
 
     const [discounts, total] = await Promise.all([
       Discount.find(query)
-        .populate('applicableTo.plans', 'name')
+        .populate('eligibility.applicablePlans', 'name')
         .sort(sortOptions)
         .skip(skip)
         .limit(parseInt(limit))
@@ -176,16 +172,16 @@ const getDiscounts = async (req, res) => {
     const now = new Date();
     const enhancedDiscounts = discounts.map(discount => ({
       ...discount,
-      remainingUses: discount.usageLimit?.total
-        ? Math.max(0, discount.usageLimit.total - discount.usageCount)
+      remainingUses: discount.usageLimits?.totalUses
+        ? Math.max(0, discount.usageLimits.totalUses - discount.usage.totalCount)
         : null,
       isExpired: discount.endDate && now > new Date(discount.endDate),
       isValid: discount.isActive &&
         (!discount.endDate || now <= new Date(discount.endDate)) &&
-        (!discount.usageLimit?.total || discount.usageCount < discount.usageLimit.total) &&
+        (!discount.usageLimits?.totalUses || discount.usage.totalCount < discount.usageLimits.totalUses) &&
         now >= new Date(discount.startDate),
-      totalRedemptions: discount.usageCount,
-      revenueImpact: discount.usageHistory?.reduce((sum, usage) => sum + usage.discountAmount, 0) || 0
+      totalRedemptions: discount.usage.totalCount,
+      revenueImpact: 0 // This would need to be calculated from DiscountRedemption collection
     }));
 
     res.json({
@@ -223,10 +219,9 @@ const getDiscountById = async (req, res) => {
     }
 
     const discount = await Discount.findById(id)
-      .populate('applicableTo.plans', 'name price')
+      .populate('eligibility.applicablePlans', 'name price')
       .populate('createdBy', 'name email')
-      .populate('usageHistory.userId', 'name email')
-      .populate('usageHistory.subscriptionId', 'planId billingCycle currentPrice');
+      .populate('lastModifiedBy', 'name email');
 
     if (!discount) {
       return res.status(404).json({
@@ -239,15 +234,15 @@ const getDiscountById = async (req, res) => {
     const now = new Date();
     const enhancedDiscount = {
       ...discount.toObject(),
-      remainingUses: discount.usageLimit?.total
-        ? Math.max(0, discount.usageLimit.total - discount.usageCount)
+      remainingUses: discount.usageLimits?.totalUses
+        ? Math.max(0, discount.usageLimits.totalUses - discount.usage.totalCount)
         : null,
       isExpired: discount.endDate && now > discount.endDate,
       isValid: discount.isActive &&
         (!discount.endDate || now <= discount.endDate) &&
-        (!discount.usageLimit?.total || discount.usageCount < discount.usageLimit.total) &&
+        (!discount.usageLimits?.totalUses || discount.usage.totalCount < discount.usageLimits.totalUses) &&
         now >= discount.startDate,
-      revenueImpact: discount.usageHistory.reduce((sum, usage) => sum + usage.discountAmount, 0)
+      revenueImpact: 0 // Would need to be calculated from DiscountRedemption collection
     };
 
     res.json({
@@ -297,12 +292,12 @@ const createDiscount = async (req, res) => {
     }
 
     // Validate plans if provided
-    if (discountData.applicableTo?.plans?.length > 0) {
+    if (discountData.eligibility?.applicablePlans?.length > 0) {
       const validPlans = await MembershipPlan.find({
-        _id: { $in: discountData.applicableTo.plans }
+        _id: { $in: discountData.eligibility.applicablePlans }
       });
 
-      if (validPlans.length !== discountData.applicableTo.plans.length) {
+      if (validPlans.length !== discountData.eligibility.applicablePlans.length) {
         return res.status(400).json({
           success: false,
           message: 'One or more invalid plan IDs'
@@ -313,7 +308,7 @@ const createDiscount = async (req, res) => {
     const discount = new Discount(discountData);
     await discount.save();
 
-    await discount.populate('applicableTo.plans', 'name');
+    await discount.populate('eligibility.applicablePlans', 'name');
 
     res.status(201).json({
       success: true,
@@ -376,12 +371,12 @@ const updateDiscount = async (req, res) => {
     }
 
     // Validate plans if provided
-    if (updateData.applicableTo?.plans?.length > 0) {
+    if (updateData.eligibility?.applicablePlans?.length > 0) {
       const validPlans = await MembershipPlan.find({
-        _id: { $in: updateData.applicableTo.plans }
+        _id: { $in: updateData.eligibility.applicablePlans }
       });
 
-      if (validPlans.length !== updateData.applicableTo.plans.length) {
+      if (validPlans.length !== updateData.eligibility.applicablePlans.length) {
         return res.status(400).json({
           success: false,
           message: 'One or more invalid plan IDs'
@@ -393,7 +388,7 @@ const updateDiscount = async (req, res) => {
       id,
       updateData,
       { new: true, runValidators: true }
-    ).populate('applicableTo.plans', 'name');
+    ).populate('eligibility.applicablePlans', 'name');
 
     res.json({
       success: true,
@@ -508,7 +503,7 @@ const validateDiscountCode = async (req, res) => {
     }
 
     // Check if discount has reached usage limit
-    if (discount.usageLimit?.total && discount.usageCount >= discount.usageLimit.total) {
+    if (discount.usageLimits?.totalUses && discount.usage.totalCount >= discount.usageLimits.totalUses) {
       return res.json({
         success: true,
         data: {
@@ -519,12 +514,15 @@ const validateDiscountCode = async (req, res) => {
     }
 
     // Check if user has already used this code (if userId provided)
-    if (userId && discount.usageLimit?.perCustomer) {
-      const userUsageCount = discount.usageHistory.filter(
-        usage => usage.userId?.toString() === userId.toString()
-      ).length;
+    if (userId && discount.usageLimits?.perCustomer) {
+      // Query DiscountRedemption collection for user usage
+      const userUsageCount = await DiscountRedemption.countDocuments({
+        discountCode: discount._id,
+        userId: userId,
+        status: 'completed'
+      });
 
-      if (userUsageCount >= discount.usageLimit.perCustomer) {
+      if (userUsageCount >= discount.usageLimits.perCustomer) {
         return res.json({
           success: true,
           data: {
@@ -536,8 +534,8 @@ const validateDiscountCode = async (req, res) => {
     }
 
     // Check plan applicability if planId provided
-    if (planId && discount.applicableTo?.plans?.length > 0) {
-      const isPlanApplicable = discount.applicableTo.plans.some(
+    if (planId && discount.eligibility?.applicablePlans?.length > 0) {
+      const isPlanApplicable = discount.eligibility.applicablePlans.some(
         plan => plan.toString() === planId.toString()
       );
 
@@ -553,8 +551,8 @@ const validateDiscountCode = async (req, res) => {
     }
 
     // Check billing cycle applicability if provided
-    if (billingCycle && discount.applicableTo?.billingCycles?.length > 0) {
-      if (!discount.applicableTo.billingCycles.includes(billingCycle)) {
+    if (billingCycle && discount.eligibility?.billingCycles?.length > 0) {
+      if (!discount.eligibility.billingCycles.includes(billingCycle)) {
         return res.json({
           success: true,
           data: {
@@ -571,13 +569,15 @@ const validateDiscountCode = async (req, res) => {
 
     if (amount) {
       const price = parseFloat(amount);
-      if (discount.type === 'percentage') {
+      const discountType = discount.type === 'fixed' ? 'fixed_amount' : discount.type; // Handle legacy type
+
+      if (discountType === 'percentage') {
         discountAmount = (price * discount.value) / 100;
         // Ensure discount doesn't exceed max discount if set
-        if (discount.maxDiscount && discountAmount > discount.maxDiscount) {
-          discountAmount = discount.maxDiscount;
+        if (discount.maxDiscountAmount && discountAmount > discount.maxDiscountAmount) {
+          discountAmount = discount.maxDiscountAmount;
         }
-      } else if (discount.type === 'fixed') {
+      } else if (discountType === 'fixed_amount') {
         discountAmount = discount.value;
       }
 
@@ -598,9 +598,9 @@ const validateDiscountCode = async (req, res) => {
           value: discount.value,
           discountAmount: discountAmount || null,
           finalPrice: finalPrice,
-          maxDiscount: discount.maxDiscount || null,
-          remainingUses: discount.usageLimit?.total
-            ? Math.max(0, discount.usageLimit.total - discount.usageCount)
+          maxDiscount: discount.maxDiscountAmount || null,
+          remainingUses: discount.usageLimits?.totalUses
+            ? Math.max(0, discount.usageLimits.totalUses - discount.usage.totalCount)
             : null
         }
       }
@@ -639,35 +639,51 @@ const getDiscountAnalytics = async (req, res) => {
         startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     }
 
-    // Usage analytics
-    const usageAnalytics = await Discount.aggregate([
-      { $unwind: '$usageHistory' },
-      { $match: { 'usageHistory.appliedAt': { $gte: startDate } } },
+    // Usage analytics from DiscountRedemption collection
+    const usageAnalytics = await DiscountRedemption.aggregate([
+      { $match: { status: 'completed', createdAt: { $gte: startDate } } },
+      {
+        $lookup: {
+          from: 'discountcodes',
+          localField: 'discountCode',
+          foreignField: '_id',
+          as: 'discount'
+        }
+      },
+      { $unwind: '$discount' },
       {
         $group: {
           _id: {
-            date: { $dateToString: { format: '%Y-%m-%d', date: '$usageHistory.appliedAt' } },
-            discountId: '$_id'
+            date: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+            discountId: '$discountCode'
           },
-          code: { $first: '$code' },
+          code: { $first: '$discount.code' },
           redemptions: { $sum: 1 },
-          revenue: { $sum: '$usageHistory.discountAmount' }
+          revenue: { $sum: '$discountAmount' }
         }
       },
       { $sort: { '_id.date': 1 } }
     ]);
 
-    // Top performing discounts
-    const topDiscounts = await Discount.aggregate([
-      { $unwind: '$usageHistory' },
-      { $match: { 'usageHistory.appliedAt': { $gte: startDate } } },
+    // Top performing discounts from DiscountRedemption collection
+    const topDiscounts = await DiscountRedemption.aggregate([
+      { $match: { status: 'completed', createdAt: { $gte: startDate } } },
+      {
+        $lookup: {
+          from: 'discountcodes',
+          localField: 'discountCode',
+          foreignField: '_id',
+          as: 'discount'
+        }
+      },
+      { $unwind: '$discount' },
       {
         $group: {
-          _id: '$_id',
-          code: { $first: '$code' },
-          name: { $first: '$name' },
+          _id: '$discountCode',
+          code: { $first: '$discount.code' },
+          name: { $first: '$discount.name' },
           redemptions: { $sum: 1 },
-          revenue: { $sum: '$usageHistory.discountAmount' }
+          revenue: { $sum: '$discountAmount' }
         }
       },
       { $sort: { redemptions: -1 } },
@@ -701,9 +717,9 @@ const bulkGenerateDiscounts = async (req, res) => {
       count,
       type,
       value,
-      applicableTo = {},
+      eligibility = {},
       validUntil,
-      usageLimit = { perCustomer: 1 }
+      usageLimits = { perCustomer: 1 }
     } = req.body;
 
     // Validate input
@@ -741,8 +757,8 @@ const bulkGenerateDiscounts = async (req, res) => {
           type,
           value,
           isActive: true,
-          applicableTo,
-          usageLimit,
+          eligibility,
+          usageLimits,
           createdBy: userId
         };
 
@@ -872,23 +888,23 @@ const getAllDiscounts = async (filters) => {
   sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
 
   const discounts = await Discount.find(query)
-    .populate('applicableTo.plans', 'name')
+    .populate('eligibility.applicablePlans', 'name')
     .sort(sortOptions)
     .lean();
 
   const now = new Date();
   return discounts.map(discount => ({
     ...discount,
-    remainingUses: discount.usageLimit?.total
-      ? Math.max(0, discount.usageLimit.total - discount.usageCount)
+    remainingUses: discount.usageLimits?.totalUses
+      ? Math.max(0, discount.usageLimits.totalUses - discount.usage.totalCount)
       : null,
     isExpired: discount.endDate && now > new Date(discount.endDate),
     isValid: discount.isActive &&
       (!discount.endDate || now <= new Date(discount.endDate)) &&
-      (!discount.usageLimit?.total || discount.usageCount < discount.usageLimit.total) &&
+      (!discount.usageLimits?.totalUses || discount.usage.totalCount < discount.usageLimits.totalUses) &&
       now >= new Date(discount.startDate),
-    totalRedemptions: discount.usageCount,
-    revenueImpact: discount.usageHistory?.reduce((sum, usage) => sum + usage.discountAmount, 0) || 0
+    totalRedemptions: discount.usage.totalCount,
+    revenueImpact: 0 // Would need to be calculated from DiscountRedemption collection
   }));
 };
 

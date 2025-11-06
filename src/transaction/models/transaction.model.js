@@ -10,7 +10,6 @@ const transactionSchema = new mongoose.Schema({
         type: String,
         required: true,
         unique: true,
-        index: true,
     },
 
     // References
@@ -23,12 +22,10 @@ const transactionSchema = new mongoose.Schema({
     subscriptionId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Subscription',
-        index: true,
     },
     invoiceId: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'Invoice',
-        index: true,
     },
     orderId: {
         type: String,
@@ -155,13 +152,12 @@ const transactionSchema = new mongoose.Schema({
         },
     },
 
-    // Payout Information
+    // Payout Status and Details
     payout: {
         status: {
             type: String,
             enum: ['not_applicable', 'pending', 'in_transit', 'paid', 'failed', 'canceled'],
             default: 'not_applicable',
-            index: true,
         },
         expectedDate: Date,
         actualDate: Date,
@@ -390,7 +386,7 @@ const transactionSchema = new mongoose.Schema({
 });
 
 // Indexes for performance
-transactionSchema.index({ transactionId: 1 });
+// Note: transactionId already has unique index from schema definition
 transactionSchema.index({ userId: 1, status: 1 });
 transactionSchema.index({ 'timeline.initiatedAt': -1 });
 transactionSchema.index({ type: 1, status: 1 });

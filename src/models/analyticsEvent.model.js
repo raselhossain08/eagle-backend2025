@@ -8,7 +8,7 @@ const analyticsEventSchema = new mongoose.Schema({
     index: true,
     enum: [
       'page_view',
-      'user_action', 
+      'user_action',
       'signup_started',
       'signup_completed',
       'login',
@@ -35,7 +35,7 @@ const analyticsEventSchema = new mongoose.Schema({
     default: null,
     index: true
   },
-  
+
   sessionId: {
     type: String,
     default: null,
@@ -104,44 +104,44 @@ analyticsEventSchema.index({ sessionId: 1, timestamp: -1 });
 analyticsEventSchema.index({ timestamp: -1, type: 1 });
 
 // TTL index to automatically delete old events (90 days)
-analyticsEventSchema.index({ 
-  createdAt: 1 
-}, { 
+analyticsEventSchema.index({
+  createdAt: 1
+}, {
   expireAfterSeconds: 90 * 24 * 60 * 60 // 90 days in seconds
 });
 
 // Static methods for common queries
-analyticsEventSchema.statics.getEventsByDateRange = function(startDate, endDate, eventType = null) {
+analyticsEventSchema.statics.getEventsByDateRange = function (startDate, endDate, eventType = null) {
   const query = {
     timestamp: {
       $gte: startDate,
       $lte: endDate
     }
   };
-  
+
   if (eventType) {
     query.type = eventType;
   }
-  
+
   return this.find(query).sort({ timestamp: -1 });
 };
 
-analyticsEventSchema.statics.getUserEvents = function(userId, limit = 100) {
+analyticsEventSchema.statics.getUserEvents = function (userId, limit = 100) {
   return this.find({ userId })
     .sort({ timestamp: -1 })
     .limit(limit)
     .populate('userId', 'email firstName lastName');
 };
 
-analyticsEventSchema.statics.getTopEvents = function(timeRange = 7) {
+analyticsEventSchema.statics.getTopEvents = function (timeRange = 7) {
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - timeRange);
-  
+
   return this.aggregate([
-    { 
-      $match: { 
-        timestamp: { $gte: startDate } 
-      } 
+    {
+      $match: {
+        timestamp: { $gte: startDate }
+      }
     },
     {
       $group: {
@@ -150,8 +150,8 @@ analyticsEventSchema.statics.getTopEvents = function(timeRange = 7) {
         lastOccurred: { $max: '$timestamp' }
       }
     },
-    { 
-      $sort: { count: -1 } 
+    {
+      $sort: { count: -1 }
     },
     {
       $project: {
@@ -164,15 +164,15 @@ analyticsEventSchema.statics.getTopEvents = function(timeRange = 7) {
   ]);
 };
 
-analyticsEventSchema.statics.getDailyStats = function(days = 30) {
+analyticsEventSchema.statics.getDailyStats = function (days = 30) {
   const startDate = new Date();
   startDate.setDate(startDate.getDate() - days);
-  
+
   return this.aggregate([
-    { 
-      $match: { 
-        timestamp: { $gte: startDate } 
-      } 
+    {
+      $match: {
+        timestamp: { $gte: startDate }
+      }
     },
     {
       $group: {
@@ -201,29 +201,29 @@ analyticsEventSchema.statics.getDailyStats = function(days = 30) {
         _id: 0
       }
     },
-    { 
-      $sort: { date: 1 } 
+    {
+      $sort: { date: 1 }
     }
   ]);
 };
 
 // Instance methods
-analyticsEventSchema.methods.toSafeObject = function() {
+analyticsEventSchema.methods.toSafeObject = function () {
   const obj = this.toObject();
-  
+
   // Remove sensitive data if needed
   if (obj.metadata && obj.metadata.ip) {
     obj.metadata.ip = obj.metadata.ip.replace(/\.\d+$/, '.***');
   }
-  
+
   return obj;
 };
 
 // Pre-save middleware to parse user agent and extract device info
-analyticsEventSchema.pre('save', function(next) {
+analyticsEventSchema.pre('save', function (next) {
   if (this.metadata && this.metadata.userAgent) {
     const userAgent = this.metadata.userAgent.toLowerCase();
-    
+
     // Simple device detection
     if (userAgent.includes('mobile') || userAgent.includes('android') || userAgent.includes('iphone')) {
       this.metadata.device = 'mobile';
@@ -232,7 +232,7 @@ analyticsEventSchema.pre('save', function(next) {
     } else {
       this.metadata.device = 'desktop';
     }
-    
+
     // Simple browser detection
     if (userAgent.includes('chrome')) {
       this.metadata.browser = 'chrome';
@@ -243,7 +243,7 @@ analyticsEventSchema.pre('save', function(next) {
     } else if (userAgent.includes('edge')) {
       this.metadata.browser = 'edge';
     }
-    
+
     // Simple OS detection
     if (userAgent.includes('windows')) {
       this.metadata.os = 'windows';
@@ -257,22 +257,23 @@ analyticsEventSchema.pre('save', function(next) {
       this.metadata.os = 'ios';
     }
   }
-  
+
   next();
 });
 
 // Virtual for formatted timestamp
-analyticsEventSchema.virtual('formattedTimestamp').get(function() {
+analyticsEventSchema.virtual('formattedTimestamp').get(function () {
   return this.timestamp.toISOString();
 });
 
 // Virtual for event age
-analyticsEventSchema.virtual('ageInHours').get(function() {
+analyticsEventSchema.virtual('ageInHours').get(function () {
   const now = new Date();
   const diffMs = now - this.timestamp;
   return Math.floor(diffMs / (1000 * 60 * 60));
 });
 
-const AnalyticsEvent = mongoose.model("AnalyticsEvent", analyticsEventSchema);
+// Check if model exists to prevent OverwriteModelError
+const AnalyticsEvent = mongoose.models.AnalyticsEvent || mongoose.model("AnalyticsEvent", analyticsEventSchema);
 
 module.exports = AnalyticsEvent;

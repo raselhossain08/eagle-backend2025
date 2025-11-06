@@ -1,8 +1,9 @@
-const User = require("../../models/user.model");
+const User = require("../../user/models/user.model");
 const bcrypt = require("bcryptjs");
 const createError = require("http-errors");
 const generateToken = require("../../utils/generateToken");
 const mongoose = require("mongoose");
+const wordpressAuthService = require("../../services/wordpressAuth.service");
 
 /**
  * @swagger
@@ -55,7 +56,7 @@ module.exports = async (req, res, next) => {
         const timeout = setTimeout(() => {
           reject(new Error("Database connection timeout"));
         }, 5000);
-        
+
         if (mongoose.connection.readyState === 1) {
           clearTimeout(timeout);
           resolve();
@@ -67,30 +68,39 @@ module.exports = async (req, res, next) => {
         }
       });
     }
-    
+
     const { email, password } = req.body;
-    
+
     console.log("🔐 Login attempt for:", email);
-    
+
     if (!email || !password) {
       throw createError(400, "Please provide email and password");
     }
 
-    const user = await User.findOne({ email });
-    if (!user) {
-      console.log("❌ User not found:", email);
+    // Try WordPress authentication with fallback to local
+    // This allows seamless login for WordPress users even before migration
+    const authResult = await wordpressAuthService.authenticateWithWordPressFallback(
+      email,
+      password
+    );
+
+    if (!authResult.success) {
+      console.log("❌ Authentication failed for:", email);
       throw createError(401, "Invalid credentials");
     }
 
-    const isMatch = await bcrypt.compare(password, user.password);
-    if (!isMatch) {
-      console.log("❌ Password mismatch for:", email);
-      throw createError(401, "Invalid credentials");
-    }
+    // Generate JWT token for local system
+    const token = generateToken(authResult.user);
 
-    const token = generateToken(user);
-    console.log("✅ Login successful for:", email);
-    res.json({ success: true, token });
+    console.log(`✅ Login successful for: ${email} (${authResult.isWordPressAuth ? 'WordPress' : 'Local'} auth)`);
+
+    res.json({
+      success: true,
+      token,
+      authType: authResult.isWordPressAuth ? 'wordpress' : 'local',
+      message: authResult.message
+    });
+
   } catch (err) {
     console.error("❌ Login error:", err.message);
     next(err);

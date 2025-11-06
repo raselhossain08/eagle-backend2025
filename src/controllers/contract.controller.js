@@ -1,5 +1,5 @@
 const SignedContract = require("../models/signedContract.model");
-const User = require("../models/user.model");
+const User = require("../user/models/user.model");
 const path = require("path");
 const fs = require("fs").promises;
 const crypto = require("crypto");

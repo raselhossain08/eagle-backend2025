@@ -18,6 +18,7 @@ router.get("/status", subscriberController.getSubscriberById);
 router.put("/update", subscriberLifecycleController.processUpgradeDowngrade);
 router.post("/schedule-downgrade", subscriberLifecycleController.downgradeSubscriber);
 router.post("/cancel-downgrade", subscriberLifecycleController.cancelSubscriber);
+router.post("/:id/change-plan", subscriberLifecycleController.changeSubscriberPlan);
 
 module.exports = router;
 

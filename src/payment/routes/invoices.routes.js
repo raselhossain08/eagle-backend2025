@@ -1,6 +1,6 @@
 const express = require('express');
 const { body, query, param } = require('express-validator');
-const invoiceController = require('../../subscription/controllers/subscription/invoice.controller');
+const invoiceController = require('../../subscription/controllers/invoice.controller');
 const { protect, restrictTo } = require('../../middlewares/auth.middleware');
 
 const router = express.Router();

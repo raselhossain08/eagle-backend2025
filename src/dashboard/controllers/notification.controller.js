@@ -1,5 +1,5 @@
 const Notification = require("../models/Notification");
-const User = require("../models/user.model");
+const User = require("../user/models/user.model");
 
 // Get notifications for authenticated user
 const getNotifications = async (req, res) => {

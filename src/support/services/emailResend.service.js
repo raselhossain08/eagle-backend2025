@@ -4,7 +4,7 @@
  */
 
 const EmailResendLog = require('../models/emailResendLog.model');
-const User = require('../../models/user.model');
+const User = require('../../user/models/user.model');
 const emailService = require('../../services/emailService');
 const createError = require('http-errors');
 

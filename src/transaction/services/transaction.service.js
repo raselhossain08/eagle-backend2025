@@ -349,7 +349,7 @@ class TransactionService {
             const { userId, startDate, endDate, type } = filters;
 
             const matchQuery = {};
-            if (userId) matchQuery.userId = mongoose.Types.ObjectId(userId);
+            if (userId) matchQuery.userId = new mongoose.Types.ObjectId(userId);
             if (type) matchQuery.type = type;
             if (startDate || endDate) {
                 matchQuery['timeline.initiatedAt'] = {};

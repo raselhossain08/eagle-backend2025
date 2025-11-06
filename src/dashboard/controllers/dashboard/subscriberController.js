@@ -1,4 +1,4 @@
-const User = require("../../models/user.model");
+const User = require("../../../user/models/user.model");
 const { SignedContract } = require("../../models/contract.model");
 const asyncHandler = require("../../../utils/asyncHandler");
 const ApiError = require("../../../utils/ApiError");

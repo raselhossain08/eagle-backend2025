@@ -1,6 +1,6 @@
 const axios = require("axios");
 const SignedContract = require("../models/signedContract.model");
-const User = require("../models/user.model");
+const User = require("../user/models/user.model");
 const PAYMENT_BRANDING = require("../config/paymentBranding");
 const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const crypto = require("crypto");

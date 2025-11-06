@@ -69,8 +69,8 @@ const getContractTemplate = async (req, res) => {
     const { language = 'en', includeInactive = false } = req.query;
 
     const template = await ContractTemplateService.getTemplate(
-      templateId, 
-      language, 
+      templateId,
+      language,
       includeInactive === 'true'
     );
 
@@ -125,9 +125,9 @@ const updateContractTemplate = async (req, res) => {
     const userName = req.user.name || `${req.user.firstName} ${req.user.lastName}`;
 
     const template = await ContractTemplateService.updateTemplate(
-      templateId, 
-      req.body, 
-      userId, 
+      templateId,
+      req.body,
+      userId,
       userName
     );
 
@@ -157,9 +157,9 @@ const createTemplateVersion = async (req, res) => {
     const userName = req.user.name || `${req.user.firstName} ${req.user.lastName}`;
 
     const newTemplate = await ContractTemplateService.createNewVersion(
-      templateId, 
-      req.body, 
-      userId, 
+      templateId,
+      req.body,
+      userId,
       userName
     );
 
@@ -275,9 +275,9 @@ const cloneTemplate = async (req, res) => {
     }
 
     const clonedTemplate = await ContractTemplateService.cloneTemplate(
-      templateId, 
-      newName, 
-      userId, 
+      templateId,
+      newName,
+      userId,
       userName
     );
 
@@ -354,7 +354,7 @@ const initiateContractSigning = async (req, res) => {
           integrationProvider,
           integrationConfig
         );
-        
+
         finalResult = {
           ...contractResult,
           integration: integrationResult.providerResponse
@@ -620,26 +620,12 @@ const getCertificateOfCompletion = async (req, res) => {
   try {
     const { contractId } = req.params;
 
-    const contract = await SignedContract.findOne({ id: contractId });
-    if (!contract) {
-      return res.status(404).json({
-        success: false,
-        message: 'Contract not found'
-      });
-    }
-
-    if (contract.status !== 'fully_signed' && contract.status !== 'completed') {
-      return res.status(400).json({
-        success: false,
-        message: 'Certificate only available for completed contracts'
-      });
-    }
-
-    // Generate certificate if not already generated
-    const certificate = await ContractSigningService.generateCertificateOfCompletion(contract);
+    // Use Evidence Compliance Service to generate certificate
+    const certificate = await EvidenceComplianceService.generateCertificate(contractId);
 
     res.json({
       success: true,
+      message: 'Certificate generated successfully',
       data: certificate
     });
   } catch (error) {
@@ -797,7 +783,7 @@ const searchContracts = async (req, res) => {
     if (status) filters.status = status.split(',');
     if (signedBy) filters.signedBy = signedBy;
     if (search) filters.search = search;
-    
+
     if (dateRange) {
       try {
         const [start, end] = dateRange.split(',');
@@ -845,7 +831,7 @@ const getContractAnalytics = async (req, res) => {
     // Calculate date range
     const endDate = new Date();
     const startDate = new Date();
-    
+
     switch (timeframe) {
       case '7d':
         startDate.setDate(endDate.getDate() - 7);
@@ -874,23 +860,23 @@ const getContractAnalytics = async (req, res) => {
       templateUsage
     ] = await Promise.all([
       SignedContract.countDocuments({ 'dates.created': { $gte: startDate, $lte: endDate } }),
-      SignedContract.countDocuments({ 
+      SignedContract.countDocuments({
         'dates.sent': { $gte: startDate, $lte: endDate },
         status: { $in: ['sent', 'partially_signed', 'fully_signed', 'completed'] }
       }),
-      SignedContract.countDocuments({ 
+      SignedContract.countDocuments({
         'dates.completed': { $gte: startDate, $lte: endDate },
         status: { $in: ['fully_signed', 'completed'] }
       }),
-      SignedContract.countDocuments({ 
+      SignedContract.countDocuments({
         'dates.completed': { $gte: startDate, $lte: endDate },
         status: 'completed'
       }),
-      SignedContract.countDocuments({ 
+      SignedContract.countDocuments({
         'dates.voided': { $gte: startDate, $lte: endDate },
         status: 'voided'
       }),
-      SignedContract.countDocuments({ 
+      SignedContract.countDocuments({
         'dates.created': { $gte: startDate, $lte: endDate },
         status: 'expired'
       }),
@@ -909,10 +895,10 @@ const getContractAnalytics = async (req, res) => {
     const recentActivity = await SignedContract.find({
       'dates.created': { $gte: startDate, $lte: endDate }
     })
-    .sort({ 'dates.created': -1 })
-    .limit(10)
-    .select('id title status dates.created signers.fullName')
-    .lean();
+      .sort({ 'dates.created': -1 })
+      .limit(10)
+      .select('id title status dates.created signers.fullName')
+      .lean();
 
     res.json({
       success: true,
@@ -966,6 +952,268 @@ const handleProviderWebhook = async (req, res) => {
   }
 };
 
+/**
+ * @desc    Get all contracts with pagination and filtering
+ * @route   GET /api/contracts/all
+ * @access  Protected (Admin/Manager)
+ */
+const getAllContracts = async (req, res) => {
+  try {
+    const {
+      page = 1,
+      limit = 10,
+      status,
+      subscriberId,
+      templateId,
+      sortBy = 'createdAt',
+      sortOrder = 'desc',
+      search
+    } = req.query;
+
+    // Build query filter
+    const query = {};
+
+    if (status && status !== 'all') {
+      query.status = status;
+    }
+
+    if (subscriberId) {
+      query.subscriberId = subscriberId;
+    }
+
+    if (templateId) {
+      query.templateId = templateId;
+    }
+
+    if (search) {
+      query.$or = [
+        { 'subscriberInfo.fullName': { $regex: search, $options: 'i' } },
+        { 'subscriberInfo.email': { $regex: search, $options: 'i' } },
+        { 'signers.fullName': { $regex: search, $options: 'i' } },
+        { 'signers.email': { $regex: search, $options: 'i' } }
+      ];
+    }
+
+    // Pagination
+    const pageNum = parseInt(page);
+    const limitNum = parseInt(limit);
+    const skip = (pageNum - 1) * limitNum;
+
+    // Sort
+    const sortOptions = {};
+    sortOptions[sortBy] = sortOrder === 'desc' ? -1 : 1;
+
+    // Execute queries in parallel
+    const [contracts, total] = await Promise.all([
+      SignedContract.find(query)
+        .sort(sortOptions)
+        .skip(skip)
+        .limit(limitNum)
+        .lean(),
+      SignedContract.countDocuments(query)
+    ]);
+
+    // Calculate statistics
+    const stats = await SignedContract.aggregate([
+      {
+        $group: {
+          _id: null,
+          totalContracts: { $sum: 1 },
+          draftContracts: {
+            $sum: { $cond: [{ $eq: ['$status', 'draft'] }, 1, 0] }
+          },
+          sentContracts: {
+            $sum: { $cond: [{ $eq: ['$status', 'sent'] }, 1, 0] }
+          },
+          partiallySignedContracts: {
+            $sum: { $cond: [{ $eq: ['$status', 'partially_signed'] }, 1, 0] }
+          },
+          fullySignedContracts: {
+            $sum: { $cond: [{ $eq: ['$status', 'fully_signed'] }, 1, 0] }
+          },
+          completedContracts: {
+            $sum: { $cond: [{ $eq: ['$status', 'completed'] }, 1, 0] }
+          },
+          declinedContracts: {
+            $sum: { $cond: [{ $eq: ['$status', 'declined'] }, 1, 0] }
+          },
+          expiredContracts: {
+            $sum: { $cond: [{ $eq: ['$status', 'expired'] }, 1, 0] }
+          },
+          voidedContracts: {
+            $sum: { $cond: [{ $eq: ['$status', 'voided'] }, 1, 0] }
+          }
+        }
+      }
+    ]);
+
+    const statistics = stats.length > 0 ? stats[0] : {
+      totalContracts: 0,
+      draftContracts: 0,
+      sentContracts: 0,
+      partiallySignedContracts: 0,
+      fullySignedContracts: 0,
+      completedContracts: 0,
+      declinedContracts: 0,
+      expiredContracts: 0,
+      voidedContracts: 0
+    };
+
+    res.status(200).json({
+      success: true,
+      data: {
+        contracts,
+        pagination: {
+          total,
+          page: pageNum,
+          limit: limitNum,
+          totalPages: Math.ceil(total / limitNum),
+          hasNextPage: pageNum < Math.ceil(total / limitNum),
+          hasPrevPage: pageNum > 1
+        },
+        statistics
+      }
+    });
+  } catch (error) {
+    console.error('❌ Get All Contracts Error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch contracts',
+      message: error.message
+    });
+  }
+};
+
+/**
+ * Get all signatures across all contracts
+ * @desc Retrieve all signatures with filtering and pagination
+ * @route GET /api/contracts/signatures
+ * @access Private (Admin, Manager, Support)
+ */
+const getAllSignatures = async (req, res) => {
+  try {
+    const {
+      page = 1,
+      limit = 20,
+      status,
+      contractId,
+      signerEmail,
+      search,
+      sortBy = 'signedAt',
+      sortOrder = 'desc'
+    } = req.query;
+
+    // Build query
+    const query = {};
+
+    // Filter by contract ID
+    if (contractId) {
+      query._id = contractId;
+    }
+
+    // Filter by contract status
+    if (status && status !== 'all') {
+      query.status = status;
+    }
+
+    // Filter by signer email
+    if (signerEmail) {
+      query['signers.email'] = signerEmail;
+    }
+
+    // Search functionality
+    if (search) {
+      query.$or = [
+        { 'signers.fullName': new RegExp(search, 'i') },
+        { 'signers.email': new RegExp(search, 'i') },
+        { templateId: new RegExp(search, 'i') },
+        { subscriberId: new RegExp(search, 'i') }
+      ];
+    }
+
+    // Calculate pagination
+    const skip = (parseInt(page) - 1) * parseInt(limit);
+    const sortOptions = {};
+    sortOptions[sortBy] = sortOrder === 'asc' ? 1 : -1;
+
+    // Fetch contracts with signatures
+    const contracts = await SignedContract.find(query)
+      .sort(sortOptions)
+      .skip(skip)
+      .limit(parseInt(limit))
+      .lean();
+
+    // Extract all signatures from contracts
+    const signatures = [];
+    contracts.forEach(contract => {
+      if (contract.signers && contract.signers.length > 0) {
+        contract.signers.forEach(signer => {
+          signatures.push({
+            contractId: contract._id,
+            templateId: contract.templateId,
+            subscriberId: contract.subscriberId,
+            contractStatus: contract.status,
+            signer: {
+              signerId: signer.signerId,
+              fullName: signer.fullName,
+              email: signer.email,
+              phone: signer.phone,
+              title: signer.title,
+              company: signer.company,
+              status: signer.status,
+              signedAt: signer.signedAt,
+              declinedAt: signer.declinedAt,
+              signature: signer.signature,
+              ipAddress: signer.ipAddress,
+              device: signer.device,
+              location: signer.location
+            },
+            createdAt: contract.createdAt,
+            updatedAt: contract.updatedAt
+          });
+        });
+      }
+    });
+
+    // Get total count for pagination
+    const totalContracts = await SignedContract.countDocuments(query);
+
+    // Calculate signature statistics
+    const totalSignatures = signatures.length;
+    const signedCount = signatures.filter(s => s.signer.status === 'signed').length;
+    const pendingCount = signatures.filter(s => s.signer.status === 'pending').length;
+    const declinedCount = signatures.filter(s => s.signer.status === 'declined').length;
+
+    res.status(200).json({
+      success: true,
+      data: {
+        signatures,
+        pagination: {
+          currentPage: parseInt(page),
+          totalPages: Math.ceil(totalContracts / parseInt(limit)),
+          totalContracts,
+          totalSignatures,
+          limit: parseInt(limit)
+        },
+        statistics: {
+          total: totalSignatures,
+          signed: signedCount,
+          pending: pendingCount,
+          declined: declinedCount,
+          completionRate: totalSignatures > 0 ? ((signedCount / totalSignatures) * 100).toFixed(2) : 0
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Get All Signatures Error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to retrieve signatures',
+      error: error.message
+    });
+  }
+};
+
 module.exports = {
   // Template Management
   getContractTemplates,
@@ -977,25 +1225,27 @@ module.exports = {
   publishTemplate,
   getTemplateStatistics,
   cloneTemplate,
-  
+
   // Contract Signing
   initiateContractSigning,
   startSigningSession,
   collectSigningEvidence,
   submitSignature,
   getContractForSigning,
-  
+
   // Evidence & Compliance
   generateEvidencePackage,
   downloadEvidencePackage,
   getCertificateOfCompletion,
   verifyEvidenceIntegrity,
   getContractAuditTrail,
-  
+
   // Admin Controls
   voidContract,
   resendContract,
   searchContracts,
+  getAllContracts,
+  getAllSignatures,
   getContractAnalytics,
   handleProviderWebhook
 };

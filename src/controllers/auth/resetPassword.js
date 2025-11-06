@@ -1,5 +1,5 @@
 const crypto = require("crypto");
-const User = require("../../models/user.model");
+const User = require("../../user/models/user.model");
 const createError = require("http-errors");
 
 module.exports = async (req, res, next) => {

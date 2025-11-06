@@ -30,7 +30,7 @@ class AdminAuthController {
 
       // Find admin user by email or username
       const adminUser = await AdminUser.findByEmailOrUsername(identifier);
-      
+
       if (!adminUser) {
         return res.status(401).json({
           success: false,
@@ -57,11 +57,11 @@ class AdminAuthController {
 
       // Verify password
       const isPasswordValid = await adminUser.comparePassword(password);
-      
+
       if (!isPasswordValid) {
         // Increment failed login attempts
         await adminUser.incLoginAttempts();
-        
+
         return res.status(401).json({
           success: false,
           message: 'Invalid credentials',
@@ -117,16 +117,25 @@ class AdminAuthController {
           type: 'admin'
         },
         process.env.JWT_SECRET,
-        { 
+        {
           expiresIn: '8h', // Admin sessions expire in 8 hours
           issuer: 'eagle-admin-dashboard',
           audience: 'eagle-admin-users'
         }
       );
 
-      // Set secure HTTP-only cookie
+      // Set secure HTTP-only cookie (backend authentication)
       res.cookie('adminToken', token, {
         httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 8 * 60 * 60 * 1000 // 8 hours
+      });
+
+      // IMPORTANT: Also set a JavaScript-accessible cookie for the frontend
+      // This is safe because the token is also sent in the response body
+      res.cookie('admin_token', token, {
+        httpOnly: false,  // Allow JavaScript access
         secure: process.env.NODE_ENV === 'production',
         sameSite: 'strict',
         maxAge: 8 * 60 * 60 * 1000 // 8 hours
@@ -179,7 +188,7 @@ class AdminAuthController {
       }
 
       const adminUser = await AdminUser.findOne({ email: email.toLowerCase() });
-      
+
       if (!adminUser || !adminUser.isTwoFactorEnabled) {
         return res.status(401).json({
           success: false,
@@ -234,14 +243,14 @@ class AdminAuthController {
           type: 'admin'
         },
         process.env.JWT_SECRET,
-        { 
+        {
           expiresIn: '8h',
           issuer: 'eagle-admin-dashboard',
           audience: 'eagle-admin-users'
         }
       );
 
-      // Set secure HTTP-only cookie
+      // Set secure HTTP-only cookie (backend authentication)
       res.cookie('adminToken', token, {
         httpOnly: true,
         secure: process.env.NODE_ENV === 'production',
@@ -249,7 +258,13 @@ class AdminAuthController {
         maxAge: 8 * 60 * 60 * 1000 // 8 hours
       });
 
-      // Prepare response data
+      // IMPORTANT: Also set a JavaScript-accessible cookie for the frontend
+      res.cookie('admin_token', token, {
+        httpOnly: false,  // Allow JavaScript access
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'strict',
+        maxAge: 8 * 60 * 60 * 1000 // 8 hours
+      });      // Prepare response data
       const responseData = {
         id: adminUser._id,
         firstName: adminUser.firstName,
@@ -315,7 +330,7 @@ class AdminAuthController {
   static async setup2FA(req, res, next) {
     try {
       const adminUser = await AdminUser.findById(req.user.id);
-      
+
       if (!adminUser) {
         return res.status(404).json({
           success: false,
@@ -366,7 +381,7 @@ class AdminAuthController {
   static async confirm2FA(req, res, next) {
     try {
       const { token } = req.body;
-      
+
       if (!token) {
         return res.status(400).json({
           success: false,
@@ -375,7 +390,7 @@ class AdminAuthController {
       }
 
       const adminUser = await AdminUser.findById(req.user.id);
-      
+
       if (!adminUser || !adminUser.metadata.tempTwoFactorSecret) {
         return res.status(400).json({
           success: false,
@@ -421,7 +436,7 @@ class AdminAuthController {
   static async disable2FA(req, res, next) {
     try {
       const { password, token } = req.body;
-      
+
       if (!password || !token) {
         return res.status(400).json({
           success: false,
@@ -430,7 +445,7 @@ class AdminAuthController {
       }
 
       const adminUser = await AdminUser.findById(req.user.id);
-      
+
       if (!adminUser) {
         return res.status(404).json({
           success: false,
@@ -483,9 +498,10 @@ class AdminAuthController {
    */
   static async logout(req, res) {
     try {
-      // Clear the admin token cookie
+      // Clear both admin token cookies
       res.clearCookie('adminToken');
-      
+      res.clearCookie('admin_token');
+
       res.status(200).json({
         success: true,
         message: 'Logout successful'
@@ -497,15 +513,13 @@ class AdminAuthController {
         message: 'Logout failed'
       });
     }
-  }
-
-  /**
+  }  /**
    * Force Password Change
    */
   static async forcePasswordChange(req, res, next) {
     try {
       const { currentPassword, newPassword } = req.body;
-      
+
       if (!currentPassword || !newPassword) {
         return res.status(400).json({
           success: false,
@@ -514,7 +528,7 @@ class AdminAuthController {
       }
 
       const adminUser = await AdminUser.findById(req.user.id);
-      
+
       if (!adminUser) {
         return res.status(404).json({
           success: false,
@@ -553,7 +567,7 @@ class AdminAuthController {
   static async forgotPassword(req, res, next) {
     try {
       const { email } = req.body;
-      
+
       if (!email) {
         return res.status(400).json({
           success: false,
@@ -562,7 +576,7 @@ class AdminAuthController {
       }
 
       const adminUser = await AdminUser.findOne({ email: email.toLowerCase() });
-      
+
       if (!adminUser) {
         // Don't reveal if email exists or not
         return res.status(200).json({
@@ -596,7 +610,7 @@ class AdminAuthController {
     try {
       const { token } = req.params;
       const { password } = req.body;
-      
+
       if (!password) {
         return res.status(400).json({
           success: false,

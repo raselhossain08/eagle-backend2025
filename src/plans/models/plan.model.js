@@ -240,4 +240,4 @@ planSchema.statics.findByCategory = function (category) {
     return this.find({ category, isActive: true, isDeleted: false });
 };
 
-module.exports = mongoose.model("plans", planSchema);
+module.exports = mongoose.model("Plan", planSchema, "plans");

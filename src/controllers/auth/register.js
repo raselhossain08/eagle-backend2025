@@ -1,4 +1,4 @@
-const User = require("../../models/user.model");
+const User = require("../../user/models/user.model");
 const createError = require("http-errors");
 const generateToken = require("../../utils/generateToken");
 const mongoose = require("mongoose");
@@ -67,7 +67,7 @@ module.exports = async (req, res, next) => {
         const timeout = setTimeout(() => {
           reject(new Error("Database connection timeout"));
         }, 5000);
-        
+
         if (mongoose.connection.readyState === 1) {
           clearTimeout(timeout);
           resolve();
@@ -79,7 +79,7 @@ module.exports = async (req, res, next) => {
         }
       });
     }
-    
+
     const { firstName, lastName, email, password, role } = req.body;
 
     console.log("📝 Registration attempt for:", email);

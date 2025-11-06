@@ -10,7 +10,6 @@ const featureFlagSchema = new mongoose.Schema({
   key: {
     type: String,
     required: true,
-    unique: true,
     trim: true
   },
   description: {

@@ -9,6 +9,7 @@ const userRoleRoutes = require('./userRole.routes');
 const auditRoutes = require('./audit.routes');
 const adminUserRoutes = require('./adminUser.routes');
 const paymentGatewayRoutes = require('./paymentGateway.routes');
+const systemSettingsRoutes = require('./systemSettings.routes');
 
 // Mount route modules
 router.use('/auth', authRoutes);
@@ -18,6 +19,7 @@ router.use('/user-roles', userRoleRoutes);
 router.use('/audit', auditRoutes);
 router.use('/users', adminUserRoutes);
 router.use('/payment-gateways', paymentGatewayRoutes);
+router.use('/system-settings', systemSettingsRoutes);
 
 // Health check endpoint for RBAC system
 router.get('/health', (req, res) => {

@@ -23,7 +23,7 @@ const membershipPlanSchema = new mongoose.Schema(
       type: String,
       maxlength: 200,
     },
-    
+
     // Pricing Structure (similar to WooCommerce)
     pricing: {
       basePrice: {
@@ -70,7 +70,7 @@ const membershipPlanSchema = new mongoose.Schema(
         price: { type: Number, default: 0 }, // usually 0 for free trials
       },
     },
-    
+
     // Plan Features and Access Control
     features: [{
       name: { type: String, required: true },
@@ -80,7 +80,7 @@ const membershipPlanSchema = new mongoose.Schema(
         type: mongoose.Schema.Types.Mixed, // Flexible for different limit types
       },
     }],
-    
+
     // Access Controls
     accessLevels: {
       dashboard: { type: Boolean, default: true },
@@ -91,7 +91,7 @@ const membershipPlanSchema = new mongoose.Schema(
       apiAccess: { type: Boolean, default: false },
       mobileApp: { type: Boolean, default: false },
     },
-    
+
     // Content Restrictions
     contentAccess: {
       basicContent: { type: Boolean, default: true },
@@ -101,7 +101,7 @@ const membershipPlanSchema = new mongoose.Schema(
       webinars: { type: Boolean, default: false },
       downloads: { type: Boolean, default: false },
     },
-    
+
     // Plan Status and Settings
     status: {
       type: String,
@@ -113,7 +113,7 @@ const membershipPlanSchema = new mongoose.Schema(
       enum: ["public", "private", "hidden"],
       default: "public",
     },
-    
+
     // Subscription Rules
     subscriptionRules: {
       autoRenewal: { type: Boolean, default: true },
@@ -139,7 +139,7 @@ const membershipPlanSchema = new mongoose.Schema(
         default: "end_of_period",
       },
     },
-    
+
     // Plan Ordering and Display
     sortOrder: {
       type: Number,
@@ -153,7 +153,7 @@ const membershipPlanSchema = new mongoose.Schema(
       text: { type: String },
       color: { type: String },
     },
-    
+
     // Plan Limits
     limits: {
       maxUsers: { type: Number }, // For team plans
@@ -166,7 +166,7 @@ const membershipPlanSchema = new mongoose.Schema(
         unit: { type: String },
       }],
     },
-    
+
     // Marketing and Display
     marketingInfo: {
       tagline: { type: String },
@@ -176,7 +176,7 @@ const membershipPlanSchema = new mongoose.Schema(
       icon: { type: String },
       color: { type: String },
     },
-    
+
     // Integration Settings
     integrations: {
       discord: {
@@ -194,7 +194,7 @@ const membershipPlanSchema = new mongoose.Schema(
         webhookUrl: { type: String },
       },
     },
-    
+
     // Compatibility with existing system
     legacyMapping: {
       oldPlanId: { type: String },
@@ -216,10 +216,10 @@ const membershipPlanSchema = new mongoose.Schema(
 );
 
 // Virtual for calculating effective prices
-membershipPlanSchema.virtual('effectivePricing').get(function() {
+membershipPlanSchema.virtual('effectivePricing').get(function () {
   const cycles = {};
   const basePrice = this.pricing.basePrice;
-  
+
   Object.keys(this.pricing.billingCycles).forEach(cycle => {
     const cycleData = this.pricing.billingCycles[cycle];
     if (cycleData.enabled) {
@@ -229,48 +229,48 @@ membershipPlanSchema.virtual('effectivePricing').get(function() {
       };
     }
   });
-  
+
   return cycles;
 });
 
 // Static method to calculate price for a given cycle
-membershipPlanSchema.statics.calculatePrice = function(basePrice, cycle, multiplier) {
+membershipPlanSchema.statics.calculatePrice = function (basePrice, cycle, multiplier) {
   return Math.round((basePrice * multiplier) * 100) / 100; // Round to 2 decimals
 };
 
 // Instance method to get price for specific billing cycle
-membershipPlanSchema.methods.getPriceForCycle = function(cycle) {
+membershipPlanSchema.methods.getPriceForCycle = function (cycle) {
   const cycleData = this.pricing.billingCycles[cycle];
   if (!cycleData || !cycleData.enabled) {
     throw new Error(`Billing cycle ${cycle} is not available for this plan`);
   }
-  
+
   return cycleData.price || (this.pricing.basePrice * cycleData.multiplier);
 };
 
 // Pre-save middleware to update calculated prices
-membershipPlanSchema.pre('save', function(next) {
+membershipPlanSchema.pre('save', function (next) {
   // Auto-generate slug if not provided
   if (!this.slug && this.name) {
     this.slug = this.name.toLowerCase().replace(/[^a-z0-9]/g, '-').replace(/-+/g, '-');
   }
-  
+
   // Calculate prices based on base price and multipliers
   Object.keys(this.pricing.billingCycles).forEach(cycle => {
     const cycleData = this.pricing.billingCycles[cycle];
     if (cycleData.enabled && !cycleData.price) {
       cycleData.price = this.constructor.calculatePrice(
-        this.pricing.basePrice, 
-        cycle, 
+        this.pricing.basePrice,
+        cycle,
         cycleData.multiplier
       );
     }
   });
-  
+
   next();
 });
 
-module.exports = mongoose.model("MembershipPlan", membershipPlanSchema);
+module.exports = mongoose.models.MembershipPlan || mongoose.model("MembershipPlan", membershipPlanSchema, "plans");
 
 
 

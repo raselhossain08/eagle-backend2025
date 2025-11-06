@@ -1,24 +1,24 @@
 const mongoose = require("mongoose");
 const bcrypt = require("bcryptjs");
 
-const publicUserSchema = new mongoose.Schema(
+const userSchema = new mongoose.Schema(
   {
     // Basic Information
-    firstName: { 
-      type: String, 
+    firstName: {
+      type: String,
       required: true,
       trim: true,
       maxlength: 50
     },
-    lastName: { 
-      type: String, 
+    lastName: {
+      type: String,
       required: true,
       trim: true,
       maxlength: 50
     },
-    email: { 
-      type: String, 
-      required: true, 
+    email: {
+      type: String,
+      required: true,
       unique: true,
       lowercase: true,
       trim: true,
@@ -36,21 +36,21 @@ const publicUserSchema = new mongoose.Schema(
       maxlength: 30,
       match: [/^[a-zA-Z0-9_]+$/, 'Username can only contain letters, numbers, and underscores']
     },
-    phone: { 
-      type: String, 
+    phone: {
+      type: String,
       required: false,
       trim: true
     },
-    
+
     // Authentication & Password
-    password: { 
-      type: String, 
-      required: function() {
-        return !this.isPendingUser && !this.isWordPressUser; 
-      }, 
+    password: {
+      type: String,
+      required: function () {
+        return !this.isPendingUser && !this.isWordPressUser;
+      },
       minlength: 6
     },
-    
+
     // User Roles & Types - Different from Admin roles
     role: {
       type: String,
@@ -62,7 +62,7 @@ const publicUserSchema = new mongoose.Schema(
       enum: ["individual", "business", "enterprise", "developer"],
       default: "individual"
     },
-    
+
     // Subscription Management
     subscription: {
       type: String,
@@ -71,8 +71,8 @@ const publicUserSchema = new mongoose.Schema(
     },
     subscriptionStatus: {
       type: String,
-      enum: ["active", "inactive", "cancelled", "suspended", "pending", "expired"],
-      default: "inactive"
+      enum: ["active", "inactive", "cancelled", "suspended", "pending", "expired", "none", "trial", "past_due"],
+      default: "none"
     },
     subscriptionStartDate: {
       type: Date
@@ -85,7 +85,48 @@ const publicUserSchema = new mongoose.Schema(
       enum: ["monthly", "quarterly", "yearly", "lifetime"],
       default: "monthly"
     },
-    
+
+    // Additional Subscription Fields
+    subscriberId: {
+      type: String,
+      unique: true,
+      sparse: true,
+      index: true
+    },
+    name: {
+      type: String,
+      trim: true
+    },
+    nextBillingDate: {
+      type: Date
+    },
+    lastBillingDate: {
+      type: Date
+    },
+    subscriptionPlanId: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'MembershipPlan'
+    },
+    paymentMethodId: {
+      type: String
+    },
+    stripeCustomerId: {
+      type: String,
+      sparse: true
+    },
+    stripeSubscriptionId: {
+      type: String,
+      sparse: true
+    },
+    totalSpent: {
+      type: Number,
+      default: 0
+    },
+    lifetimeValue: {
+      type: Number,
+      default: 0
+    },
+
     // Contact & Address Information
     address: {
       country: { type: String, required: false },
@@ -95,11 +136,11 @@ const publicUserSchema = new mongoose.Schema(
       stateCounty: { type: String, required: false },
       postcodeZip: { type: String, required: false },
     },
-    
+
     // Social Integration
-    discordUsername: { 
-      type: String, 
-      required: false 
+    discordUsername: {
+      type: String,
+      required: false
     },
     telegramUsername: {
       type: String,
@@ -111,23 +152,23 @@ const publicUserSchema = new mongoose.Schema(
       github: String,
       website: String
     },
-    
+
     // WordPress Integration
-    wordpressId: { 
-      type: Number, 
-      unique: true, 
+    wordpressId: {
+      type: Number,
+      unique: true,
       sparse: true,
-      index: true 
+      index: true
     },
-    isWordPressUser: { 
-      type: Boolean, 
-      default: false 
+    isWordPressUser: {
+      type: Boolean,
+      default: false
     },
-    lastSyncedAt: { 
-      type: Date, 
-      default: Date.now 
+    lastSyncedAt: {
+      type: Date,
+      default: Date.now
     },
-    
+
     // Account Verification & Security
     isEmailVerified: {
       type: Boolean,
@@ -143,7 +184,7 @@ const publicUserSchema = new mongoose.Schema(
     phoneVerifiedAt: {
       type: Date
     },
-    
+
     // Account Status
     isActive: {
       type: Boolean,
@@ -163,7 +204,7 @@ const publicUserSchema = new mongoose.Schema(
     blockedAt: {
       type: Date
     },
-    
+
     // Session & Login Management
     lastLoginAt: {
       type: Date
@@ -182,7 +223,7 @@ const publicUserSchema = new mongoose.Schema(
     lockUntil: {
       type: Date
     },
-    
+
     // Password Management
     resetToken: {
       type: String,
@@ -195,7 +236,7 @@ const publicUserSchema = new mongoose.Schema(
     passwordChangedAt: {
       type: Date
     },
-    
+
     // Account Activation
     activationToken: {
       type: String,
@@ -205,7 +246,7 @@ const publicUserSchema = new mongoose.Schema(
       type: Date,
       default: null
     },
-    
+
     // Profile Information
     profilePicture: {
       type: String,
@@ -230,7 +271,7 @@ const publicUserSchema = new mongoose.Schema(
       type: String,
       default: "en"
     },
-    
+
     // Business Information (for business users)
     company: {
       name: String,
@@ -241,7 +282,7 @@ const publicUserSchema = new mongoose.Schema(
         enum: ["1-10", "11-50", "51-200", "201-500", "501-1000", "1000+"]
       }
     },
-    
+
     // User Preferences
     preferences: {
       emailNotifications: {
@@ -262,7 +303,7 @@ const publicUserSchema = new mongoose.Schema(
         default: "light"
       }
     },
-    
+
     // Marketing & Analytics
     referralSource: {
       type: String
@@ -273,7 +314,7 @@ const publicUserSchema = new mongoose.Schema(
     utmSource: String,
     utmMedium: String,
     utmCampaign: String,
-    
+
     // API Access (for developers)
     apiKey: {
       type: String,
@@ -288,7 +329,7 @@ const publicUserSchema = new mongoose.Schema(
       type: Number,
       default: 100 // requests per hour for basic users
     },
-    
+
     // Custom Fields & Tags
     tags: [{
       type: String,
@@ -298,7 +339,7 @@ const publicUserSchema = new mongoose.Schema(
       type: String,
       maxlength: 1000
     },
-    
+
     // System Fields
     source: {
       type: String,
@@ -306,7 +347,7 @@ const publicUserSchema = new mongoose.Schema(
       default: "website"
     }
   },
-  { 
+  {
     timestamps: true,
     indexes: [
       { email: 1 },
@@ -324,21 +365,21 @@ const publicUserSchema = new mongoose.Schema(
 );
 
 // Virtual fields
-publicUserSchema.virtual('fullName').get(function() {
+userSchema.virtual('fullName').get(function () {
   return `${this.firstName} ${this.lastName}`;
 });
 
-publicUserSchema.virtual('isLocked').get(function() {
+userSchema.virtual('isLocked').get(function () {
   return !!(this.lockUntil && this.lockUntil > Date.now());
 });
 
-publicUserSchema.virtual('subscriptionActive').get(function() {
-  return this.subscriptionStatus === 'active' && 
-         this.subscriptionEndDate && 
-         this.subscriptionEndDate > new Date();
+userSchema.virtual('subscriptionActive').get(function () {
+  return this.subscriptionStatus === 'active' &&
+    this.subscriptionEndDate &&
+    this.subscriptionEndDate > new Date();
 });
 
-publicUserSchema.virtual('roleLevel').get(function() {
+userSchema.virtual('roleLevel').get(function () {
   const levels = {
     'subscriber': 1, // Newsletter/blog subscribers
     'user': 2,       // Registered users with basic access
@@ -349,13 +390,13 @@ publicUserSchema.virtual('roleLevel').get(function() {
 });
 
 // Pre-save middleware
-publicUserSchema.pre("save", async function (next) {
+userSchema.pre("save", async function (next) {
   // Hash password if modified
   if (this.isModified("password") && this.password) {
     this.password = await bcrypt.hash(this.password, 12);
     this.passwordChangedAt = new Date();
   }
-  
+
   // Auto-upgrade role based on subscription
   if (this.isModified("subscription") || this.isModified("subscriptionStatus")) {
     if (this.subscriptionStatus === 'active') {
@@ -378,87 +419,87 @@ publicUserSchema.pre("save", async function (next) {
       this.role = 'subscriber'; // Downgrade to subscriber if subscription not active
     }
   }
-  
+
   next();
 });
 
 // Instance Methods
-publicUserSchema.methods.comparePassword = function (enteredPassword) {
+userSchema.methods.comparePassword = function (enteredPassword) {
   if (!this.password) return false;
   return bcrypt.compare(enteredPassword, this.password);
 };
 
-publicUserSchema.methods.createPasswordResetToken = function() {
+userSchema.methods.createPasswordResetToken = function () {
   const crypto = require('crypto');
   const resetToken = crypto.randomBytes(32).toString('hex');
-  
+
   this.resetToken = crypto
     .createHash('sha256')
     .update(resetToken)
     .digest('hex');
-    
+
   this.resetTokenExpiry = Date.now() + 10 * 60 * 1000; // 10 minutes
-  
+
   return resetToken;
 };
 
-publicUserSchema.methods.createActivationToken = function() {
+userSchema.methods.createActivationToken = function () {
   const crypto = require('crypto');
   const activationToken = crypto.randomBytes(32).toString('hex');
-  
+
   this.activationToken = crypto
     .createHash('sha256')
     .update(activationToken)
     .digest('hex');
-    
+
   this.activationTokenExpiry = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
-  
+
   return activationToken;
 };
 
-publicUserSchema.methods.updateLoginInfo = function(ipAddress) {
+userSchema.methods.updateLoginInfo = function (ipAddress) {
   this.lastLoginAt = new Date();
   this.lastLoginIP = ipAddress;
   this.loginCount += 1;
   return this.save();
 };
 
-publicUserSchema.methods.incrementFailedLogin = function() {
+userSchema.methods.incrementFailedLogin = function () {
   if (this.lockUntil && this.lockUntil < Date.now()) {
     return this.updateOne({
       $set: { failedLoginAttempts: 1 },
       $unset: { lockUntil: 1 }
     });
   }
-  
+
   const updates = { $inc: { failedLoginAttempts: 1 } };
-  
+
   if (this.failedLoginAttempts + 1 >= 5 && !this.isLocked) {
     updates.$set = { lockUntil: Date.now() + 2 * 60 * 60 * 1000 }; // 2 hours
   }
-  
+
   return this.updateOne(updates);
 };
 
-publicUserSchema.methods.resetFailedLogin = function() {
+userSchema.methods.resetFailedLogin = function () {
   return this.updateOne({
     $unset: { failedLoginAttempts: 1, lockUntil: 1 }
   });
 };
 
-publicUserSchema.methods.hasAccess = function(feature) {
+userSchema.methods.hasAccess = function (feature) {
   const roleAccess = {
     'subscriber': ['newsletter', 'basic_content'],
     'user': ['newsletter', 'basic_content', 'user_dashboard', 'basic_features'],
     'premium_user': ['newsletter', 'basic_content', 'user_dashboard', 'basic_features', 'premium_features', 'api_access'],
     'vip_user': ['newsletter', 'basic_content', 'user_dashboard', 'basic_features', 'premium_features', 'api_access', 'vip_features', 'priority_support']
   };
-  
+
   return roleAccess[this.role]?.includes(feature) || false;
 };
 
 // Static Methods
-publicUserSchema.statics.findByEmailOrUsername = function(identifier) {
+userSchema.statics.findByEmailOrUsername = function (identifier) {
   return this.findOne({
     $or: [
       { email: identifier.toLowerCase() },
@@ -467,7 +508,7 @@ publicUserSchema.statics.findByEmailOrUsername = function(identifier) {
   });
 };
 
-publicUserSchema.statics.getSubscriberStats = function() {
+userSchema.statics.getSubscriberStats = function () {
   return this.aggregate([
     {
       $group: {
@@ -479,7 +520,7 @@ publicUserSchema.statics.getSubscriberStats = function() {
   ]);
 };
 
-publicUserSchema.statics.getSubscriptionStats = function() {
+userSchema.statics.getSubscriptionStats = function () {
   return this.aggregate([
     {
       $group: {
@@ -494,9 +535,9 @@ publicUserSchema.statics.getSubscriptionStats = function() {
 };
 
 // Ensure virtual fields are serialized
-publicUserSchema.set('toJSON', {
+userSchema.set('toJSON', {
   virtuals: true,
-  transform: function(doc, ret) {
+  transform: function (doc, ret) {
     delete ret.password;
     delete ret.resetToken;
     delete ret.activationToken;
@@ -504,4 +545,4 @@ publicUserSchema.set('toJSON', {
   }
 });
 
-module.exports = mongoose.model("PublicUser", publicUserSchema);
+module.exports = mongoose.models.User || mongoose.model("User", userSchema, "users");

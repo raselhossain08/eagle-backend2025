@@ -1,5 +1,5 @@
 const EmailResendLog = require('../models/emailResend.model');
-const User = require('../models/user.model');
+const User = require('../user/models/user.model');
 const AdminUser = require('../models/adminUser.model');
 const AuditLog = require('../../audit/models/auditLog.model');
 const crypto = require('crypto');
