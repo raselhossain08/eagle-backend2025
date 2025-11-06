@@ -21,6 +21,7 @@ const functionRoutes = require("./routes/function.routes");
 const analyticsRoutes = require("./analytics/routes/analytics.routes");
 const rbacRoutes = require("./admin/routes/index");
 const systemSettingsRoutes = require("./admin/routes/systemSettings.routes");
+const notificationRoutes = require("./routes/notification.routes");
 
 // User Module Routes (Public User Management + Admin User Management)
 const userModuleRoutes = require("./user/routes/index");
@@ -253,6 +254,7 @@ app.use("/api/analytics", analyticsRoutes);
 app.use("/api/admin", rbacRoutes);
 app.use("/api/rbac", rbacRoutes); // Alias for admin/RBAC routes
 app.use("/api/system-settings", systemSettingsRoutes); // System settings (public + admin)
+app.use("/api/notifications", notificationRoutes); // Notification management
 
 // User Module Routes - Public User Management + Admin Dashboard
 app.use("/api/users", userModuleRoutes);

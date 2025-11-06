@@ -49,6 +49,33 @@ router.get('/',
 );
 
 /**
+ * @route GET /v1/subscribers/stats
+ * @desc Get comprehensive subscriber statistics for dashboard
+ * @access Admin, Support, Finance
+ */
+router.get('/stats',
+  restrictTo('admin', 'support', 'finance'),
+  subscriberController.getSubscriberStats
+);
+
+/**
+ * @route GET /v1/subscribers/export
+ * @desc Export subscribers data in various formats
+ * @access Admin, Support, Finance
+ */
+router.get('/export',
+  restrictTo('admin', 'support', 'finance'),
+  [
+    query('format').isIn(['csv', 'excel', 'json']).withMessage('Format must be csv, excel, or json'),
+    query('status').optional().isIn(['active', 'paused', 'cancelled', 'trial', 'past_due', 'unpaid', 'all']).withMessage('Invalid status'),
+    query('plan').optional().isIn(['Basic', 'Diamond', 'Infinity', 'Script', 'all']).withMessage('Invalid plan'),
+    query('dateFrom').optional().isISO8601().withMessage('Invalid date format'),
+    query('dateTo').optional().isISO8601().withMessage('Invalid date format')
+  ],
+  subscriberController.exportSubscribers
+);
+
+/**
  * @route GET /v1/subscribers/:id
  * @desc Get detailed subscriber information
  * @access Admin, Support, Finance, or Subscriber Self
@@ -79,33 +106,6 @@ router.get('/:id/timeline',
     query('includeSensitive').optional().isBoolean().withMessage('Include sensitive must be boolean')
   ],
   subscriberController.getSubscriberTimeline
-);
-
-/**
- * @route GET /v1/subscribers/stats
- * @desc Get comprehensive subscriber statistics for dashboard
- * @access Admin, Support, Finance
- */
-router.get('/stats',
-  restrictTo('admin', 'support', 'finance'),
-  subscriberController.getSubscriberStats
-);
-
-/**
- * @route GET /v1/subscribers/export
- * @desc Export subscribers data in various formats
- * @access Admin, Support, Finance
- */
-router.get('/export',
-  restrictTo('admin', 'support', 'finance'),
-  [
-    query('format').isIn(['csv', 'excel', 'json']).withMessage('Format must be csv, excel, or json'),
-    query('status').optional().isIn(['active', 'paused', 'cancelled', 'trial', 'past_due', 'unpaid', 'all']).withMessage('Invalid status'),
-    query('plan').optional().isIn(['Basic', 'Diamond', 'Infinity', 'Script', 'all']).withMessage('Invalid plan'),
-    query('dateFrom').optional().isISO8601().withMessage('Invalid date format'),
-    query('dateTo').optional().isISO8601().withMessage('Invalid date format')
-  ],
-  subscriberController.exportSubscribers
 );
 
 /**
