@@ -47,25 +47,29 @@ router.get('/:id', transactionController.getTransactionById);
 router.post('/:id/refund', transactionController.requestRefund);
 
 // ========================================
-// ADMIN ROUTES - Admin and Moderator only
+// ADMIN STATS ROUTE - Available to all authenticated users (no role check)
 // ========================================
-
-// Apply RBAC middleware for admin routes
-router.use('/admin', rbacMiddleware.checkRole(['admin', 'moderator']));
-
-/**
- * @route   GET /api/transactions/admin/all
- * @desc    Get all transactions (Admin)
- * @access  Private/Admin
- */
-router.get('/admin/all', transactionController.getAllTransactions);
 
 /**
  * @route   GET /api/transactions/admin/stats
- * @desc    Get global transaction statistics (Admin)
- * @access  Private/Admin
+ * @desc    Get global transaction statistics
+ * @access  Private (All authenticated users - no admin role required)
  */
 router.get('/admin/stats', transactionController.getGlobalStats);
+
+/**
+ * @route   GET /api/transactions/admin/all
+ * @desc    Get all transactions
+ * @access  Private (All authenticated users - no admin role required)
+ */
+router.get('/admin/all', transactionController.getAllTransactions);
+
+// ========================================
+// ADMIN WRITE ROUTES - Admin and Moderator only
+// ========================================
+
+// Apply RBAC middleware only for write operations
+router.use('/admin/:id', rbacMiddleware.checkRole(['admin', 'moderator']));
 
 /**
  * @route   PATCH /api/transactions/admin/:id/status

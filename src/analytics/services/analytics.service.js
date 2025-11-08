@@ -6,6 +6,20 @@ const {
   AnalyticsSummary
 } = require('../models/analytics.model');
 
+const mongoose = require('mongoose');
+
+// Get SimpleAnalyticsEvent model
+const getSimpleAnalyticsModel = () => {
+  return mongoose.models.SimpleAnalyticsEvent || mongoose.model('SimpleAnalyticsEvent', new mongoose.Schema({
+    type: { type: String, required: true, index: true },
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null, index: true },
+    sessionId: { type: String, default: null, index: true },
+    timestamp: { type: Date, default: Date.now, index: true },
+    properties: { type: mongoose.Schema.Types.Mixed, default: {} },
+    metadata: { type: mongoose.Schema.Types.Mixed, default: {} }
+  }, { timestamps: true, collection: 'simple_analytics_events' }));
+};
+
 class AnalyticsService {
 
   /**
@@ -47,25 +61,64 @@ class AnalyticsService {
     const previousRange = this.getDateRange(range === '7d' ? '14d' : range === '30d' ? '60d' : '180d');
 
     try {
+      const SimpleAnalyticsEvent = getSimpleAnalyticsModel();
+
       // Current period metrics
       const [
         totalPageViews,
         uniqueVisitors,
-        sessions,
         avgSessionDuration,
-        bounceRate
+        bounceRateData
       ] = await Promise.all([
-        PageView.countDocuments({ timestamp: { $gte: startDate, $lte: endDate } }),
-        PageView.distinct('sessionId', { timestamp: { $gte: startDate, $lte: endDate } }).then(sessions => sessions.length),
-        UserSession.countDocuments({ startTime: { $gte: startDate, $lte: endDate } }),
-        UserSession.aggregate([
-          { $match: { startTime: { $gte: startDate, $lte: endDate }, duration: { $gt: 0 } } },
-          { $group: { _id: null, avgDuration: { $avg: '$duration' } } }
+        // Total page views
+        SimpleAnalyticsEvent.countDocuments({
+          type: 'page_view',
+          timestamp: { $gte: startDate, $lte: endDate }
+        }),
+
+        // Unique visitors (distinct sessions)
+        SimpleAnalyticsEvent.distinct('sessionId', {
+          timestamp: { $gte: startDate, $lte: endDate }
+        }).then(sessions => sessions.length),
+
+        // Average session duration from page view durations
+        SimpleAnalyticsEvent.aggregate([
+          {
+            $match: {
+              type: 'page_view',
+              timestamp: { $gte: startDate, $lte: endDate },
+              'properties.duration': { $exists: true, $gt: 0 }
+            }
+          },
+          {
+            $group: {
+              _id: null,
+              avgDuration: { $avg: '$properties.duration' }
+            }
+          }
         ]).then(result => result[0]?.avgDuration || 0),
-        PageView.aggregate([
-          { $match: { timestamp: { $gte: startDate, $lte: endDate } } },
-          { $group: { _id: '$sessionId', pageCount: { $sum: 1 } } },
-          { $group: { _id: null, bounced: { $sum: { $cond: [{ $eq: ['$pageCount', 1] }, 1, 0] } }, total: { $sum: 1 } } }
+
+        // Bounce rate (sessions with only 1 page view)
+        SimpleAnalyticsEvent.aggregate([
+          {
+            $match: {
+              type: 'page_view',
+              timestamp: { $gte: startDate, $lte: endDate }
+            }
+          },
+          {
+            $group: {
+              _id: '$sessionId',
+              pageCount: { $sum: 1 }
+            }
+          },
+          {
+            $group: {
+              _id: null,
+              bounced: { $sum: { $cond: [{ $eq: ['$pageCount', 1] }, 1, 0] } },
+              total: { $sum: 1 }
+            }
+          }
         ]).then(result => result[0] ? (result[0].bounced / result[0].total) * 100 : 0)
       ]);
 
@@ -73,15 +126,31 @@ class AnalyticsService {
       const [
         prevTotalPageViews,
         prevUniqueVisitors,
-        prevSessions,
         prevAvgSessionDuration
       ] = await Promise.all([
-        PageView.countDocuments({ timestamp: { $gte: previousRange.startDate, $lt: startDate } }),
-        PageView.distinct('sessionId', { timestamp: { $gte: previousRange.startDate, $lt: startDate } }).then(sessions => sessions.length),
-        UserSession.countDocuments({ startTime: { $gte: previousRange.startDate, $lt: startDate } }),
-        UserSession.aggregate([
-          { $match: { startTime: { $gte: previousRange.startDate, $lt: startDate }, duration: { $gt: 0 } } },
-          { $group: { _id: null, avgDuration: { $avg: '$duration' } } }
+        SimpleAnalyticsEvent.countDocuments({
+          type: 'page_view',
+          timestamp: { $gte: previousRange.startDate, $lt: startDate }
+        }),
+
+        SimpleAnalyticsEvent.distinct('sessionId', {
+          timestamp: { $gte: previousRange.startDate, $lt: startDate }
+        }).then(sessions => sessions.length),
+
+        SimpleAnalyticsEvent.aggregate([
+          {
+            $match: {
+              type: 'page_view',
+              timestamp: { $gte: previousRange.startDate, $lt: startDate },
+              'properties.duration': { $exists: true, $gt: 0 }
+            }
+          },
+          {
+            $group: {
+              _id: null,
+              avgDuration: { $avg: '$properties.duration' }
+            }
+          }
         ]).then(result => result[0]?.avgDuration || 0)
       ]);
 
@@ -103,9 +172,9 @@ class AnalyticsService {
           trend: uniqueVisitors >= prevUniqueVisitors ? 'up' : 'down'
         },
         sessions: {
-          value: sessions,
-          change: calculateChange(sessions, prevSessions),
-          trend: sessions >= prevSessions ? 'up' : 'down'
+          value: uniqueVisitors, // Same as unique visitors for now
+          change: calculateChange(uniqueVisitors, prevUniqueVisitors),
+          trend: uniqueVisitors >= prevUniqueVisitors ? 'up' : 'down'
         },
         avgSessionDuration: {
           value: Math.round(avgSessionDuration),
@@ -113,8 +182,8 @@ class AnalyticsService {
           trend: avgSessionDuration >= prevAvgSessionDuration ? 'up' : 'down'
         },
         bounceRate: {
-          value: parseFloat(bounceRate.toFixed(1)),
-          change: calculateChange(bounceRate, 0), // TODO: Calculate previous bounce rate
+          value: parseFloat(bounceRateData.toFixed(1)),
+          change: 0, // TODO: Calculate previous bounce rate
           trend: 'down' // Lower bounce rate is better
         }
       };
@@ -130,13 +199,21 @@ class AnalyticsService {
     const { startDate, endDate } = this.getDateRange(range);
 
     try {
-      const trafficData = await PageView.aggregate([
-        { $match: { timestamp: { $gte: startDate, $lte: endDate } } },
+      const SimpleAnalyticsEvent = getSimpleAnalyticsModel();
+
+      const trafficData = await SimpleAnalyticsEvent.aggregate([
+        {
+          $match: {
+            type: 'page_view',
+            timestamp: { $gte: startDate, $lte: endDate },
+            'properties.trafficSource': { $exists: true }
+          }
+        },
         {
           $group: {
             _id: {
               month: { $dateToString: { format: '%b', date: '$timestamp' } },
-              source: '$trafficSource'
+              source: '$properties.trafficSource'
             },
             count: { $sum: 1 }
           }
@@ -144,11 +221,12 @@ class AnalyticsService {
         {
           $group: {
             _id: '$_id.month',
-            organic: { $sum: { $cond: [{ $eq: ['$_id.source', 'organic'] }, '$count', 0] } },
-            paid: { $sum: { $cond: [{ $eq: ['$_id.source', 'paid'] }, '$count', 0] } },
+            google: { $sum: { $cond: [{ $eq: ['$_id.source', 'google'] }, '$count', 0] } },
+            facebook: { $sum: { $cond: [{ $eq: ['$_id.source', 'facebook'] }, '$count', 0] } },
+            twitter: { $sum: { $cond: [{ $eq: ['$_id.source', 'twitter'] }, '$count', 0] } },
             direct: { $sum: { $cond: [{ $eq: ['$_id.source', 'direct'] }, '$count', 0] } },
-            social: { $sum: { $cond: [{ $eq: ['$_id.source', 'social'] }, '$count', 0] } },
-            referral: { $sum: { $cond: [{ $eq: ['$_id.source', 'referral'] }, '$count', 0] } }
+            referral: { $sum: { $cond: [{ $eq: ['$_id.source', 'referral'] }, '$count', 0] } },
+            other: { $sum: { $cond: [{ $nin: ['$_id.source', ['google', 'facebook', 'twitter', 'direct', 'referral']] }, '$count', 0] } }
           }
         },
         { $sort: { _id: 1 } }
@@ -156,14 +234,15 @@ class AnalyticsService {
 
       return trafficData.map(item => ({
         month: item._id,
-        organic: item.organic,
-        paid: item.paid,
+        organic: item.google + item.other, // Combine google and other as organic
+        paid: 0, // No paid data yet
         direct: item.direct,
-        social: item.social,
+        social: item.facebook + item.twitter, // Combine social sources
         referral: item.referral
       }));
     } catch (error) {
-      throw new Error(`Failed to get traffic sources: ${error.message}`);
+      console.error('Error in getTrafficSources:', error);
+      return [];
     }
   }
 
@@ -174,15 +253,22 @@ class AnalyticsService {
     const { startDate, endDate } = this.getDateRange(range);
 
     try {
-      const topPages = await PageView.aggregate([
-        { $match: { timestamp: { $gte: startDate, $lte: endDate } } },
+      const SimpleAnalyticsEvent = getSimpleAnalyticsModel();
+
+      const topPages = await SimpleAnalyticsEvent.aggregate([
+        {
+          $match: {
+            type: 'page_view',
+            timestamp: { $gte: startDate, $lte: endDate },
+            'properties.path': { $exists: true }
+          }
+        },
         {
           $group: {
-            _id: '$page',
+            _id: '$properties.path',
             views: { $sum: 1 },
             uniqueViews: { $addToSet: '$sessionId' },
-            totalDuration: { $sum: '$duration' },
-            bounced: { $sum: { $cond: ['$bounced', 1, 0] } }
+            totalDuration: { $sum: '$properties.duration' }
           }
         },
         {
@@ -190,8 +276,8 @@ class AnalyticsService {
             page: '$_id',
             views: 1,
             uniqueViews: { $size: '$uniqueViews' },
-            avgDuration: { $divide: ['$totalDuration', '$views'] },
-            bounceRate: { $multiply: [{ $divide: ['$bounced', '$views'] }, 100] }
+            avgDuration: { $cond: [{ $gt: ['$views', 0] }, { $divide: ['$totalDuration', '$views'] }, 0] },
+            bounce: 0 // TODO: Calculate bounce rate per page
           }
         },
         { $sort: { views: -1 } },
@@ -199,14 +285,15 @@ class AnalyticsService {
       ]);
 
       return topPages.map(page => ({
-        page: page.page,
+        page: page.page || '/',
         views: page.views,
         uniqueViews: page.uniqueViews,
-        bounce: parseFloat(page.bounceRate.toFixed(1)),
+        bounce: parseFloat(page.bounce.toFixed(1)),
         avgTime: this.formatDuration(page.avgDuration)
       }));
     } catch (error) {
-      throw new Error(`Failed to get top pages: ${error.message}`);
+      console.error('Error in getTopPages:', error);
+      return [];
     }
   }
 
@@ -217,17 +304,29 @@ class AnalyticsService {
     const { startDate, endDate } = this.getDateRange(range);
 
     try {
-      const deviceData = await PageView.aggregate([
-        { $match: { timestamp: { $gte: startDate, $lte: endDate } } },
+      const SimpleAnalyticsEvent = getSimpleAnalyticsModel();
+
+      const deviceData = await SimpleAnalyticsEvent.aggregate([
+        {
+          $match: {
+            type: 'page_view',
+            timestamp: { $gte: startDate, $lte: endDate },
+            'properties.deviceType': { $exists: true }
+          }
+        },
         {
           $group: {
-            _id: '$deviceType',
+            _id: '$properties.deviceType',
             count: { $sum: 1 }
           }
         }
       ]);
 
       const total = deviceData.reduce((sum, item) => sum + item.count, 0);
+
+      if (total === 0) {
+        return [];
+      }
 
       const deviceMap = {
         desktop: { name: 'Desktop', color: '#059669' },
@@ -241,7 +340,8 @@ class AnalyticsService {
         color: deviceMap[item._id]?.color || '#6b7280'
       }));
     } catch (error) {
-      throw new Error(`Failed to get device breakdown: ${error.message}`);
+      console.error('Error in getDeviceBreakdown:', error);
+      return [];
     }
   }
 
@@ -252,36 +352,91 @@ class AnalyticsService {
     const { startDate, endDate } = this.getDateRange(range);
 
     try {
-      const funnelData = await Conversion.aggregate([
-        { $match: { completedAt: { $gte: startDate, $lte: endDate } } },
+      const SimpleAnalyticsEvent = getSimpleAnalyticsModel();
+
+      // Get visit count (unique sessions)
+      const visits = await SimpleAnalyticsEvent.distinct('sessionId', {
+        timestamp: { $gte: startDate, $lte: endDate }
+      }).then(sessions => sessions.length);
+
+      // Get signup events
+      const signups = await SimpleAnalyticsEvent.countDocuments({
+        type: { $in: ['signup_completed', 'signup', 'user_signup', 'user_action'] },
+        timestamp: { $gte: startDate, $lte: endDate }
+      });
+
+      // Get trial events
+      const trials = await SimpleAnalyticsEvent.countDocuments({
+        type: { $in: ['trial_started', 'trial', 'subscription_trial', 'subscription_viewed'] },
+        timestamp: { $gte: startDate, $lte: endDate }
+      });
+
+      // Get purchase/payment events
+      const purchases = await SimpleAnalyticsEvent.countDocuments({
+        type: { $in: ['payment_completed', 'purchase', 'subscription_created', 'payment_started'] },
+        timestamp: { $gte: startDate, $lte: endDate }
+      });
+
+      // Get active users (users with multiple sessions or repeated visits)
+      const activeUsers = await SimpleAnalyticsEvent.aggregate([
         {
-          $group: {
-            _id: '$funnelStep',
-            count: { $sum: 1 }
+          $match: {
+            timestamp: { $gte: startDate, $lte: endDate },
+            userId: { $ne: null, $exists: true }
           }
         },
-        { $sort: { _id: 1 } }
-      ]);
+        {
+          $group: {
+            _id: '$userId',
+            sessionCount: { $addToSet: '$sessionId' }
+          }
+        },
+        {
+          $match: {
+            'sessionCount.1': { $exists: true } // Users with at least 2 sessions
+          }
+        }
+      ]).then(result => result.length);
 
-      const stepOrder = ['visit', 'signup', 'trial', 'purchase', 'active_user'];
-      const stepLabels = {
-        visit: 'Website Visit',
-        signup: 'Sign Up',
-        trial: 'Trial Start',
-        purchase: 'Purchase',
-        active_user: 'Active User'
-      };
+      const stepData = [
+        {
+          step: 'Website Visit',
+          users: visits,
+          conversionRate: 100
+        },
+        {
+          step: 'Sign Up',
+          users: signups,
+          conversionRate: visits > 0 ? parseFloat((signups / visits * 100).toFixed(1)) : 0
+        },
+        {
+          step: 'Trial Start',
+          users: trials,
+          conversionRate: signups > 0 ? parseFloat((trials / signups * 100).toFixed(1)) : 0
+        },
+        {
+          step: 'Purchase',
+          users: purchases,
+          conversionRate: trials > 0 ? parseFloat((purchases / trials * 100).toFixed(1)) : 0
+        },
+        {
+          step: 'Active User',
+          users: activeUsers,
+          conversionRate: purchases > 0 ? parseFloat((activeUsers / purchases * 100).toFixed(1)) : 0
+        }
+      ];
 
-      return stepOrder.map(step => {
-        const stepData = funnelData.find(item => item._id === step);
-        return {
-          step: stepLabels[step],
-          users: stepData ? stepData.count : 0,
-          conversionRate: 0 // Calculate based on previous step
-        };
-      });
+      return stepData;
     } catch (error) {
-      throw new Error(`Failed to get conversion funnel: ${error.message}`);
+      console.error('Error in getConversionFunnel:', error);
+      // Return empty funnel structure on error
+      return [
+        { step: 'Website Visit', users: 0, conversionRate: 100 },
+        { step: 'Sign Up', users: 0, conversionRate: 0 },
+        { step: 'Trial Start', users: 0, conversionRate: 0 },
+        { step: 'Purchase', users: 0, conversionRate: 0 },
+        { step: 'Active User', users: 0, conversionRate: 0 }
+      ];
     }
   }
 
@@ -292,21 +447,25 @@ class AnalyticsService {
     const { startDate, endDate } = this.getDateRange(range);
 
     try {
-      const events = await Event.aggregate([
-        { $match: { timestamp: { $gte: startDate, $lte: endDate } } },
+      const SimpleAnalyticsEvent = getSimpleAnalyticsModel();
+
+      const events = await SimpleAnalyticsEvent.aggregate([
+        {
+          $match: {
+            timestamp: { $gte: startDate, $lte: endDate },
+            type: { $ne: 'page_view' } // Exclude page views from events
+          }
+        },
         {
           $group: {
-            _id: {
-              category: '$eventCategory',
-              action: '$eventAction'
-            },
+            _id: '$type',
             count: { $sum: 1 },
-            uniqueUsers: { $addToSet: '$userId' }
+            uniqueUsers: { $addToSet: '$sessionId' }
           }
         },
         {
           $project: {
-            eventName: { $concat: ['$_id.category', ' - ', '$_id.action'] },
+            eventName: '$_id',
             count: 1,
             uniqueUsers: { $size: '$uniqueUsers' }
           }
@@ -317,7 +476,8 @@ class AnalyticsService {
 
       return events;
     } catch (error) {
-      throw new Error(`Failed to get events: ${error.message}`);
+      console.error('Error in getEvents:', error);
+      return [];
     }
   }
 
@@ -328,18 +488,20 @@ class AnalyticsService {
     const { startDate, endDate } = this.getDateRange(range);
 
     try {
-      const events = await Event.find({
+      const SimpleAnalyticsEvent = getSimpleAnalyticsModel();
+
+      const events = await SimpleAnalyticsEvent.find({
         timestamp: { $gte: startDate, $lte: endDate }
       })
         .sort({ timestamp: -1 })
         .limit(limit)
-        .select('eventType eventCategory eventAction eventLabel timestamp page userId sessionId')
+        .select('type timestamp properties sessionId userId')
         .lean();
 
       return events.map(event => ({
-        type: event.eventType || event.eventCategory || 'Event',
-        action: event.eventAction || 'Unknown',
-        label: event.eventLabel || event.page || '',
+        type: event.type || 'Event',
+        action: event.type || 'Unknown',
+        label: event.properties?.path || event.properties?.page || '',
         timestamp: event.timestamp,
         userId: event.userId,
         sessionId: event.sessionId
@@ -637,42 +799,42 @@ class AnalyticsService {
     const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
 
     try {
+      const SimpleAnalyticsEvent = getSimpleAnalyticsModel();
+
       const [
-        activeUsers,
-        activeSessions,
-        recentPageViews,
-        recentEvents,
-        topActivePages,
-        activeDevices,
-        activeLocations
+        // Active users in last 5 minutes (count unique sessions)
+        recentSessions,
+        // All events in last 30 minutes
+        allRecentEvents,
+        // Top pages aggregation
+        topPagesResult,
+        // Device breakdown
+        devicesResult,
+        // Previous period for trend calculation
+        previousPeriodSessions
       ] = await Promise.all([
-        // Active users in last 5 minutes
-        PageView.distinct('sessionId', {
+        // Recent unique sessions (active users)
+        SimpleAnalyticsEvent.distinct('sessionId', {
           timestamp: { $gte: fiveMinutesAgo }
-        }).then(sessions => sessions.length),
-
-        // Active sessions in last 30 minutes
-        UserSession.countDocuments({
-          startTime: { $gte: thirtyMinutesAgo },
-          endTime: { $exists: false }
         }),
 
-        // Recent page views (last 30 minutes)
-        PageView.countDocuments({
+        // All recent events
+        SimpleAnalyticsEvent.find({
           timestamp: { $gte: thirtyMinutesAgo }
-        }),
+        }).lean(),
 
-        // Recent events (last 30 minutes)
-        Event.countDocuments({
-          timestamp: { $gte: thirtyMinutesAgo }
-        }),
-
-        // Top active pages
-        PageView.aggregate([
-          { $match: { timestamp: { $gte: thirtyMinutesAgo } } },
+        // Top pages
+        SimpleAnalyticsEvent.aggregate([
+          {
+            $match: {
+              timestamp: { $gte: thirtyMinutesAgo },
+              type: 'page_view',
+              'properties.path': { $exists: true }
+            }
+          },
           {
             $group: {
-              _id: '$page',
+              _id: '$properties.path',
               activeUsers: { $addToSet: '$sessionId' },
               views: { $sum: 1 }
             }
@@ -684,63 +846,73 @@ class AnalyticsService {
               views: 1
             }
           },
-          { $sort: { activeUsers: -1 } },
+          { $sort: { activeUsers: -1, views: -1 } },
           { $limit: 5 }
         ]),
 
-        // Active devices
-        PageView.aggregate([
-          { $match: { timestamp: { $gte: thirtyMinutesAgo } } },
+        // Device breakdown
+        SimpleAnalyticsEvent.aggregate([
+          {
+            $match: {
+              timestamp: { $gte: thirtyMinutesAgo },
+              type: 'page_view',
+              'properties.deviceType': { $exists: true }
+            }
+          },
           {
             $group: {
-              _id: '$deviceType',
-              count: { $addToSet: '$sessionId' }
+              _id: '$properties.deviceType',
+              sessions: { $addToSet: '$sessionId' }
             }
           },
           {
             $project: {
               device: '$_id',
-              users: { $size: '$count' }
+              users: { $size: '$sessions' }
             }
           }
         ]),
 
-        // Active locations (if available)
-        PageView.aggregate([
-          {
-            $match: {
-              timestamp: { $gte: thirtyMinutesAgo },
-              location: { $exists: true }
-            }
-          },
-          {
-            $group: {
-              _id: '$location.country',
-              count: { $addToSet: '$sessionId' }
-            }
-          },
-          {
-            $project: {
-              country: '$_id',
-              users: { $size: '$count' }
-            }
-          },
-          { $sort: { users: -1 } },
-          { $limit: 5 }
-        ])
+        // Previous period sessions for trend
+        SimpleAnalyticsEvent.distinct('sessionId', {
+          timestamp: {
+            $gte: new Date(Date.now() - 30 * 60 * 1000),
+            $lt: fiveMinutesAgo
+          }
+        })
       ]);
 
-      // Calculate trend (compare last 5 mins to previous 25 mins)
-      const previousPeriodUsers = await PageView.distinct('sessionId', {
-        timestamp: {
-          $gte: new Date(Date.now() - 30 * 60 * 1000),
-          $lt: fiveMinutesAgo
-        }
-      }).then(sessions => sessions.length);
+      // Calculate metrics
+      const activeUsers = recentSessions.length;
+      const activeSessions = recentSessions.length; // For now, same as active users
+      const recentPageViews = allRecentEvents.filter(e => e.type === 'page_view').length;
+      const recentEvents = allRecentEvents.length;
 
+      // Calculate trend
+      const previousPeriodUsers = previousPeriodSessions.length;
       const trend = previousPeriodUsers > 0
         ? ((activeUsers - previousPeriodUsers) / previousPeriodUsers) * 100
-        : 0;
+        : activeUsers > 0 ? 100 : 0;
+
+      // Get location data from metadata if available
+      const locationsMap = new Map();
+      allRecentEvents.forEach(event => {
+        if (event.metadata && event.metadata.country && event.sessionId) {
+          const country = event.metadata.country;
+          if (!locationsMap.has(country)) {
+            locationsMap.set(country, new Set());
+          }
+          locationsMap.get(country).add(event.sessionId);
+        }
+      });
+
+      const activeLocations = Array.from(locationsMap.entries())
+        .map(([country, sessions]) => ({
+          country,
+          users: sessions.size
+        }))
+        .sort((a, b) => b.users - a.users)
+        .slice(0, 5);
 
       const realtimeData = {
         current: {
@@ -748,63 +920,30 @@ class AnalyticsService {
           activeSessions,
           pageViews: recentPageViews,
           events: recentEvents,
-          trend: trend.toFixed(1)
+          trend: trend > 0 ? `+${trend.toFixed(1)}` : trend.toFixed(1)
         },
-        topPages: topActivePages.map(page => ({
+        topPages: topPagesResult.map(page => ({
           page: page.page || 'Unknown',
           activeUsers: page.activeUsers,
           views: page.views
         })),
-        devices: activeDevices.map(device => ({
+        devices: devicesResult.map(device => ({
           type: device.device || 'Unknown',
           users: device.users
         })),
-        locations: activeLocations.map(loc => ({
-          country: loc.country || 'Unknown',
-          users: loc.users
-        })),
+        locations: activeLocations.length > 0 ? activeLocations : [
+          { country: 'Unknown', users: activeUsers }
+        ],
         timestamp: new Date().toISOString(),
-        period: 'last_30_minutes'
+        period: 'last_30_minutes',
+        isSampleData: false
       };
-
-      // If no real data, provide sample data
-      if (activeUsers === 0) {
-        return {
-          current: {
-            activeUsers: 12,
-            activeSessions: 15,
-            pageViews: 48,
-            events: 23,
-            trend: '+5.2'
-          },
-          topPages: [
-            { page: '/dashboard', activeUsers: 5, views: 12 },
-            { page: '/pricing', activeUsers: 3, views: 8 },
-            { page: '/features', activeUsers: 2, views: 6 },
-            { page: '/signup', activeUsers: 2, views: 5 }
-          ],
-          devices: [
-            { type: 'desktop', users: 7 },
-            { type: 'mobile', users: 4 },
-            { type: 'tablet', users: 1 }
-          ],
-          locations: [
-            { country: 'United States', users: 6 },
-            { country: 'United Kingdom', users: 3 },
-            { country: 'Canada', users: 2 },
-            { country: 'Germany', users: 1 }
-          ],
-          timestamp: new Date().toISOString(),
-          period: 'last_30_minutes',
-          isSampleData: true
-        };
-      }
 
       return realtimeData;
     } catch (error) {
       console.error('Failed to get real-time analytics:', error);
 
-      // Return sample data on error
+      // Return empty data structure on error
       return {
         current: {
           activeUsers: 0,
@@ -818,7 +957,8 @@ class AnalyticsService {
         locations: [],
         timestamp: new Date().toISOString(),
         period: 'last_30_minutes',
-        error: error.message
+        error: error.message,
+        isSampleData: false
       };
     }
   }

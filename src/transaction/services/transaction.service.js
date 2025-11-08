@@ -123,8 +123,14 @@ class TransactionService {
                 sortOrder = 'desc',
             } = options;
 
-            // Build query
-            const query = { userId };
+            // Build query - only add userId if provided
+            const query = {};
+            if (userId) {
+                query.userId = userId;
+            }
+
+            console.log('🔍 getUserTransactions query:', JSON.stringify(query));
+            console.log('📄 Page:', page, 'Limit:', limit);
 
             if (status) {
                 query.status = status;
@@ -157,6 +163,9 @@ class TransactionService {
                     .lean(),
                 Transaction.countDocuments(query),
             ]);
+
+            console.log('✅ Database returned:', transactions.length, 'transactions');
+            console.log('📊 Total count:', total);
 
             return {
                 success: true,
@@ -382,6 +391,38 @@ class TransactionService {
                 },
             ]);
 
+            // Get daily/period breakdown
+            const dailyStats = await Transaction.aggregate([
+                { $match: matchQuery },
+                {
+                    $group: {
+                        _id: {
+                            $dateToString: {
+                                format: '%Y-%m-%d',
+                                date: '$timeline.initiatedAt'
+                            }
+                        },
+                        count: { $sum: 1 },
+                        totalAmount: { $sum: '$amount.gross' },
+                        totalFees: { $sum: '$amount.fee' },
+                        succeeded: {
+                            $sum: { $cond: [{ $eq: ['$status', 'succeeded'] }, 1, 0] }
+                        }
+                    }
+                },
+                {
+                    $project: {
+                        date: '$_id',
+                        count: 1,
+                        totalAmount: 1,
+                        totalFees: 1,
+                        succeeded: 1,
+                        _id: 0
+                    }
+                },
+                { $sort: { date: 1 } }
+            ]);
+
             const result = stats[0] || {
                 totalTransactions: 0,
                 totalAmount: 0,
@@ -397,6 +438,10 @@ class TransactionService {
             result.successRate = result.totalTransactions > 0
                 ? ((result.succeededCount / result.totalTransactions) * 100).toFixed(2)
                 : 0;
+
+            // Add daily breakdown
+            result.byPeriod = dailyStats;
+            result.dailyStats = dailyStats;
 
             return {
                 success: true,

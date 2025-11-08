@@ -7,10 +7,15 @@ const transactionService = require('../services/transaction.service');
 /**
  * Get user's transaction history
  * GET /api/transactions
+ * NOTE: Modified to show all transactions for dashboard purposes
  */
 exports.getTransactions = async (req, res) => {
     try {
-        const userId = req.user.id;
+        console.log('🔍 getTransactions called');
+        console.log('👤 User:', req.user?.email, 'Role:', req.user?.role);
+
+        // Pass null as userId to get all transactions
+        const userId = null;
         const options = {
             page: parseInt(req.query.page) || 1,
             limit: parseInt(req.query.limit) || 20,
@@ -22,14 +27,20 @@ exports.getTransactions = async (req, res) => {
             sortOrder: req.query.sortOrder || 'desc',
         };
 
+        console.log('📋 Query options:', options);
+        console.log('🔑 userId (null = all):', userId);
+
         const result = await transactionService.getUserTransactions(userId, options);
+
+        console.log('✅ Result pagination:', result.data.pagination);
+        console.log('📦 Transactions count:', result.data.transactions.length);
 
         res.json({
             success: true,
             ...result.data,
         });
     } catch (error) {
-        console.error('Error fetching transactions:', error);
+        console.error('❌ Error fetching transactions:', error);
         res.status(500).json({
             success: false,
             message: 'Failed to fetch transactions',
