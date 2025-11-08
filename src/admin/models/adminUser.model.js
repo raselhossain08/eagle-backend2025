@@ -417,3 +417,33 @@ adminUserSchema.set('toJSON', {
 });
 
 module.exports = mongoose.model("AdminUser", adminUserSchema);
+
+// Backwards-compatible mappings and convenience statics
+// Normalize commonly seen legacy values before validation to avoid enum errors
+adminUserSchema.pre('validate', function(next) {
+  // Map legacy admin values
+  if (this.adminLevel && typeof this.adminLevel === 'string') {
+    const v = this.adminLevel.toLowerCase().trim();
+    if (v === 'admin') this.adminLevel = 'super_admin';
+    // allow a few common synonyms
+    if (v === 'superadmin' || v === 'super-admin') this.adminLevel = 'super_admin';
+    if (v === 'finance') this.adminLevel = 'finance_admin';
+    if (v === 'growth' || v === 'marketing') this.adminLevel = 'growth_marketing';
+  }
+
+  // Map legacy department values
+  if (this.department && typeof this.department === 'string') {
+    const d = this.department.toLowerCase().trim();
+    if (d === 'engineering' || d === 'eng' || d === 'engineering & development') {
+      this.department = 'technology';
+    }
+    if (d === 'hr' || d === 'human resources') this.department = 'hr';
+    if (d === 'ops') this.department = 'operations';
+  }
+
+  next();
+});
+
+// Expose enum values for other modules/scripts to use
+adminUserSchema.statics.ADMIN_LEVELS = ["super_admin", "finance_admin", "growth_marketing", "support", "read_only"];
+adminUserSchema.statics.DEPARTMENTS = ["technology","finance","marketing","support","operations","hr","legal","executive"];

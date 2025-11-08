@@ -26,34 +26,74 @@ const placeholderSchema = new mongoose.Schema({
 }, { _id: false });
 
 const contractTemplateSchema = new mongoose.Schema({
-  id: { type: String, required: true }, // Unique index defined in schema.index() below
-  name: { type: String, required: true },
+  id: { type: String }, // Unique index defined in schema.index() below
+  name: { type: String },
   description: { type: String },
 
+  // Template Status
+  status: {
+    type: String,
+    enum: ['draft', 'review', 'approved', 'active', 'deprecated', 'archived'],
+    default: 'draft'
+  },
+
+  // Template Category and Locale
+  category: {
+    type: String,
+    enum: ['investment_agreement', 'service_agreement', 'privacy_policy', 'terms_of_service', 'nda', 'custom'],
+    default: 'custom'
+  },
+  locale: { type: String, default: 'en-US' },
+
   // Version Control
-  version: { type: String, required: true, default: '1.0.0' },
+  version: { type: String, default: '1.0.0' },
   previousVersionId: { type: String },
   isActive: { type: Boolean, default: true },
 
   // Template Content
   content: {
-    // Multi-language support
-    languages: {
-      type: Map,
-      of: {
-        title: { type: String, required: true },
-        body: { type: String, required: true }, // HTML content with placeholders
-        footer: { type: String },
-        metadata: {
-          language: { type: String, required: true },
-          region: { type: String },
-          currency: { type: String, default: 'USD' }
-        }
-      }
-    },
+    body: { type: String }, // Plain text content with placeholders
+    htmlBody: { type: String }, // HTML content (optional)
+    variables: [{
+      name: { type: String },
+      label: { type: String },
+      type: {
+        type: String,
+        enum: ['text', 'number', 'date', 'boolean', 'select', 'textarea', 'email', 'phone', 'currency'],
+        default: 'text'
+      },
+      required: { type: Boolean, default: false },
+      defaultValue: { type: mongoose.Schema.Types.Mixed },
+      options: [{ type: String }], // For select type
+      description: { type: String },
+      placeholder: { type: String },
+      group: { type: String }
+    }]
+  },
 
-    // Default language fallback
-    defaultLanguage: { type: String, default: 'en' }
+  // Template Metadata
+  metadata: {
+    title: { type: String },
+    description: { type: String },
+    tags: [{ type: String }],
+    keywords: [{ type: String }],
+    author: { type: String },
+    jurisdiction: { type: String },
+    applicableLaw: { type: String }
+  },
+
+  // Legal Requirements
+  legal: {
+    requiresSignature: { type: Boolean, default: true },
+    signatureType: {
+      type: String,
+      enum: ['electronic', 'digital', 'wet'],
+      default: 'electronic'
+    },
+    witnessRequired: { type: Boolean, default: false },
+    notarizationRequired: { type: Boolean, default: false },
+    retentionPeriod: { type: String }, // e.g., "7 years"
+    complianceNotes: { type: String }
   },
 
   // Template Configuration
@@ -126,8 +166,8 @@ const contractTemplateSchema = new mongoose.Schema({
 
   // Audit Information
   audit: {
-    createdBy: { type: String, required: true },
-    createdByName: { type: String, required: true },
+    createdBy: { type: String },
+    createdByName: { type: String },
     createdAt: { type: Date, default: Date.now },
 
     lastModifiedBy: { type: String },
@@ -888,6 +928,24 @@ signedContractSchema.pre('save', function (next) {
   }
 
   next();
+});
+
+// Transform template output to ensure frontend gets the custom ID
+contractTemplateSchema.set('toJSON', {
+  transform: function(doc, ret) {
+    // Ensure the custom id is available as both 'id' and 'templateId' for frontend compatibility
+    ret.templateId = ret.id;
+    
+    // Optionally keep _id for internal MongoDB operations
+    ret._id = doc._id;
+    
+    return ret;
+  }
+});
+
+// Virtual field for easier access
+contractTemplateSchema.virtual('templateId').get(function() {
+  return this.id;
 });
 
 const ContractTemplate = mongoose.model('ContractTemplate', contractTemplateSchema);

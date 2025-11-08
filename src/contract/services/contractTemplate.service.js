@@ -6,25 +6,60 @@ const crypto = require('crypto');
  * Manages versioned contract templates with multi-language support
  */
 class ContractTemplateService {
+
+  /**
+   * Helper method to find template by ID (supports both custom id and MongoDB _id)
+   */
+  static async findTemplateById(templateId, includeInactive = false) {
+    // Try to find by custom id first
+    let query = { id: templateId };
+    if (!includeInactive) {
+      query.isActive = true;
+    }
+    
+    let template = await ContractTemplate.findOne(query);
+    
+    if (!template) {
+      // Check if templateId is a valid MongoDB ObjectId and try finding by _id
+      const mongoose = require('mongoose');
+      if (mongoose.Types.ObjectId.isValid(templateId)) {
+        const objectIdQuery = { _id: templateId };
+        if (!includeInactive) {
+          objectIdQuery.isActive = true;
+        }
+        template = await ContractTemplate.findOne(objectIdQuery);
+      }
+    }
+    
+    return template;
+  }
   
   /**
    * Create a new contract template
    */
   static async createTemplate(templateData, userId, userName) {
     try {
-      // Generate unique template ID
+      // Generate unique template ID (never allow frontend to override this)
       const templateId = `tpl_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
       
-      const template = new ContractTemplate({
-        id: templateId,
+      // Create clean template data without any potential ID override
+      const cleanTemplateData = {
         ...templateData,
+        id: templateId, // Always use our generated ID
+        status: templateData.status || 'draft', // Default to draft status
+        version: '1.0.0', // Always start with version 1.0.0
+        isActive: true,
         audit: {
           createdBy: userId,
           createdByName: userName,
-          createdAt: new Date()
+          createdAt: new Date(),
+          lastModifiedBy: userId,
+          lastModifiedByName: userName,
+          lastModifiedAt: new Date()
         }
-      });
+      };
 
+      const template = new ContractTemplate(cleanTemplateData);
       await template.save();
       return template;
     } catch (error) {
@@ -33,31 +68,17 @@ class ContractTemplateService {
   }
 
   /**
-   * Get template by ID with language support
+   * Get template by ID
    */
-  static async getTemplate(templateId, language = 'en', includeInactive = false) {
+  static async getTemplate(templateId, includeInactive = false) {
     try {
-      const query = { id: templateId };
-      if (!includeInactive) {
-        query.isActive = true;
-      }
-
-      const template = await ContractTemplate.findOne(query);
+      const template = await this.findTemplateById(templateId, includeInactive);
+      
       if (!template) {
         throw new Error('Template not found');
       }
 
-      // Get content for requested language or fallback to default
-      const content = template.content.languages.get(language) || 
-                    template.content.languages.get(template.content.defaultLanguage);
-
-      return {
-        ...template.toObject(),
-        content: {
-          ...template.content,
-          currentLanguage: content
-        }
-      };
+      return template.toObject();
     } catch (error) {
       throw new Error(`Failed to get template: ${error.message}`);
     }
@@ -72,8 +93,9 @@ class ContractTemplateService {
         isActive = true,
         applicablePlans,
         applicableRegions,
-        language,
-        search
+        search,
+        category,
+        status
       } = filters;
 
       const {
@@ -97,15 +119,21 @@ class ContractTemplateService {
         query['config.applicableRegions'] = { $in: applicableRegions };
       }
 
-      if (language) {
-        query[`content.languages.${language}`] = { $exists: true };
+      if (category && category !== 'all') {
+        query.category = category;
+      }
+
+      if (status && status !== 'all') {
+        query.status = status;
       }
 
       if (search) {
         query.$or = [
           { name: new RegExp(search, 'i') },
           { description: new RegExp(search, 'i') },
-          { 'content.languages.title': new RegExp(search, 'i') }
+          { 'content.body': new RegExp(search, 'i') },
+          { 'metadata.title': new RegExp(search, 'i') },
+          { 'metadata.description': new RegExp(search, 'i') }
         ];
       }
 
@@ -140,13 +168,28 @@ class ContractTemplateService {
    */
   static async updateTemplate(templateId, updates, userId, userName) {
     try {
-      const template = await ContractTemplate.findOne({ id: templateId });
+      const template = await this.findTemplateById(templateId);
+      
       if (!template) {
         throw new Error('Template not found');
       }
 
-      // Update template
-      Object.assign(template, updates);
+      // Prevent modification of critical fields
+      const protectedFields = ['id', '_id', 'version', 'audit.createdBy', 'audit.createdAt', 'audit.createdByName'];
+      const cleanUpdates = { ...updates };
+      
+      // Remove protected fields from updates
+      delete cleanUpdates.id;
+      delete cleanUpdates._id;
+      delete cleanUpdates.version;
+      if (cleanUpdates.audit) {
+        delete cleanUpdates.audit.createdBy;
+        delete cleanUpdates.audit.createdAt;
+        delete cleanUpdates.audit.createdByName;
+      }
+
+      // Update template with validated data
+      Object.assign(template, cleanUpdates);
       
       // Update audit info
       template.audit.lastModifiedBy = userId;
@@ -165,7 +208,8 @@ class ContractTemplateService {
    */
   static async createNewVersion(templateId, updates, userId, userName) {
     try {
-      const currentTemplate = await ContractTemplate.findOne({ id: templateId });
+      const currentTemplate = await this.findTemplateById(templateId, true); // Include inactive for versioning
+      
       if (!currentTemplate) {
         throw new Error('Template not found');
       }
@@ -190,7 +234,8 @@ class ContractTemplateService {
    */
   static async approveTemplate(templateId, userId, userName) {
     try {
-      const template = await ContractTemplate.findOne({ id: templateId });
+      const template = await this.findTemplateById(templateId);
+      
       if (!template) {
         throw new Error('Template not found');
       }
@@ -211,7 +256,7 @@ class ContractTemplateService {
    */
   static async publishTemplate(templateId, userId, userName) {
     try {
-      const template = await ContractTemplate.findOne({ id: templateId });
+      const template = await this.findTemplateById(templateId);
       if (!template) {
         throw new Error('Template not found');
       }
@@ -237,7 +282,7 @@ class ContractTemplateService {
    */
   static async deactivateTemplate(templateId, userId, userName) {
     try {
-      const template = await ContractTemplate.findOne({ id: templateId });
+      const template = await this.findTemplateById(templateId);
       if (!template) {
         throw new Error('Template not found');
       }
@@ -319,7 +364,7 @@ class ContractTemplateService {
    */
   static async cloneTemplate(templateId, newName, userId, userName) {
     try {
-      const originalTemplate = await ContractTemplate.findOne({ id: templateId });
+      const originalTemplate = await this.findTemplateById(templateId, true);
       if (!originalTemplate) {
         throw new Error('Template not found');
       }
@@ -365,7 +410,7 @@ class ContractTemplateService {
    */
   static async getTemplateStatistics(templateId) {
     try {
-      const template = await ContractTemplate.findOne({ id: templateId });
+      const template = await this.findTemplateById(templateId);
       if (!template) {
         throw new Error('Template not found');
       }
@@ -564,7 +609,7 @@ class ContractTemplateService {
    */
   static async exportTemplate(templateId, includeStatistics = false) {
     try {
-      const template = await ContractTemplate.findOne({ id: templateId });
+      const template = await this.findTemplateById(templateId);
       if (!template) {
         throw new Error('Template not found');
       }
