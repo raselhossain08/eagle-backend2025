@@ -1,7 +1,7 @@
 module.exports = {
   apps: [{
     name: 'eagle-backend',
-    script: 'server.js',
+    script: 'index.js', // Changed from server.js to index.js
     instances: 2, // Use cluster mode for better performance
     exec_mode: 'cluster',
     autorestart: true,
