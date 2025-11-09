@@ -129,9 +129,13 @@ const corsOptions = {
       'http://localhost:3000', // Development frontend
       'http://localhost:3001', // Alternative dev port
       'https://eagle-investors.com', // Production domain
-      'https://www.eagle-investors.com', // Production domain with www
-      'https://admin.eagleinvest.us', // Admin panel
-      'https://www.admin.eagleinvest.us' // Admin panel with www
+      'https://www.eagle-investors.com' // Production domain with www
+    ];
+
+    // Define allowed domain patterns (for subdomains)
+    const allowedDomainPatterns = [
+      /^https?:\/\/(.*\.)?eagleinvest\.us$/,  // Matches eagleinvest.us and all subdomains
+      /^https?:\/\/(.*\.)?eagle-investors\.com$/ // Matches eagle-investors.com and all subdomains
     ];
 
     // In development, allow all localhost origins
@@ -139,12 +143,19 @@ const corsOptions = {
       return callback(null, true);
     }
 
+    // Check exact matches
     if (allowedOrigins.indexOf(origin) !== -1) {
-      callback(null, true);
-    } else {
-      console.log(`❌ CORS blocked origin: ${origin}`);
-      callback(new Error('Not allowed by CORS'));
+      return callback(null, true);
     }
+
+    // Check pattern matches for subdomains
+    const isAllowedByPattern = allowedDomainPatterns.some(pattern => pattern.test(origin));
+    if (isAllowedByPattern) {
+      return callback(null, true);
+    }
+
+    console.log(`❌ CORS blocked origin: ${origin}`);
+    callback(new Error('Not allowed by CORS'));
   },
   credentials: true, // Allow cookies and authorization headers
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],

@@ -116,8 +116,8 @@ const auditLogSchema = new Schema({
     // Timestamps
     timestamp: {
         type: Date,
-        default: Date.now,
-        index: true
+        default: Date.now
+        // index: true // Removed: covered by compound indexes below
     }
 }, {
     timestamps: false, // Using custom timestamp field

@@ -14,8 +14,8 @@ const migrationHistorySchema = new mongoose.Schema(
         userId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'User',
-            required: true,
-            index: true
+            required: true
+            // index: true // Removed: covered by schema.index({ userId: 1 }) below
         },
         username: {
             type: String,
