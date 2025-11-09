@@ -121,7 +121,7 @@ initializeApp();
 // COMPLETELY DISABLE CORS - Anyone can access from anywhere
 app.use(cors({
   origin: '*', // Allow all origins
-  credentials: false, // No credentials needed
+  credentials: false, // No credentials to match Nginx config
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
   allowedHeaders: ['*'], // All headers allowed
   exposedHeaders: ['*'], // All headers exposed
@@ -131,19 +131,19 @@ app.use(cors({
 // Handle preflight requests globally - NO RESTRICTIONS
 app.options('*', cors());
 
-// Universal CORS headers - NO RESTRICTIONS
+// Universal CORS headers - NO RESTRICTIONS - Match Nginx
 app.use((req, res, next) => {
-  // Allow ALL origins
+  // Allow ALL origins - matching Nginx
   res.header('Access-Control-Allow-Origin', '*');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS, HEAD');
-  res.header('Access-Control-Allow-Headers', '*');
-  res.header('Access-Control-Expose-Headers', '*');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-API-Key, Accept, Origin, Cache-Control');
+  res.header('Access-Control-Allow-Credentials', 'false'); // Match Nginx - no credentials
   res.header('Access-Control-Max-Age', '86400');
 
   // Handle preflight requests immediately
   if (req.method === 'OPTIONS') {
     console.log(`✅ Preflight request allowed from: ${req.headers.origin || 'Unknown'}`);
-    return res.status(200).end();
+    return res.status(204).end();
   }
 
   next();
