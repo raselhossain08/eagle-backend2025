@@ -124,33 +124,28 @@ const corsOptions = {
     // Allow requests with no origin (mobile apps, Postman, etc.)
     if (!origin) return callback(null, true);
 
-    const allowedOrigins = [
-      config.CLIENT_URL, // Frontend URL from .env
-      'http://localhost:3000', // Development frontend
-      'http://localhost:3001', // Alternative dev port
-      'https://eagle-investors.com', // Production domain
-      'https://www.eagle-investors.com' // Production domain with www
-    ];
-
-    // Define allowed domain patterns (for subdomains)
-    const allowedDomainPatterns = [
-      /^https?:\/\/(.*\.)?eagleinvest\.us$/,  // Matches eagleinvest.us and all subdomains
-      /^https?:\/\/(.*\.)?eagle-investors\.com$/ // Matches eagle-investors.com and all subdomains
-    ];
-
     // In development, allow all localhost origins
     if (config.NODE_ENV === 'development' && origin.includes('localhost')) {
+      console.log(`✅ CORS allowed (localhost): ${origin}`);
       return callback(null, true);
     }
 
-    // Check exact matches
-    if (allowedOrigins.indexOf(origin) !== -1) {
+    // Check if origin contains allowed domains (simple string matching for reliability)
+    const allowedDomains = [
+      'eagleinvest.us',
+      'eagle-investors.com'
+    ];
+
+    const isAllowed = allowedDomains.some(domain => origin.includes(domain));
+
+    if (isAllowed) {
+      console.log(`✅ CORS allowed: ${origin}`);
       return callback(null, true);
     }
 
-    // Check pattern matches for subdomains
-    const isAllowedByPattern = allowedDomainPatterns.some(pattern => pattern.test(origin));
-    if (isAllowedByPattern) {
+    // Also check CLIENT_URL from env
+    if (config.CLIENT_URL && origin === config.CLIENT_URL) {
+      console.log(`✅ CORS allowed (CLIENT_URL): ${origin}`);
       return callback(null, true);
     }
 
