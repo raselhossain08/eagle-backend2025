@@ -253,6 +253,11 @@ const limiter = rateLimit({
   message: "Too many requests from this IP, please try again later.",
   standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
   legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  // Custom key generator to work with trust proxy
+  keyGenerator: (req) => {
+    // Use X-Forwarded-For if available (from proxy), otherwise use req.ip
+    return req.headers['x-forwarded-for']?.split(',')[0].trim() || req.ip || 'unknown';
+  },
   // Skip rate limiting for local development
   skip: (req) => {
     if (process.env.NODE_ENV !== 'production') {
