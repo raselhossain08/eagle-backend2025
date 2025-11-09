@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const wordpressController = require('../controllers/wordpress.controller');
-const { protect } = require('../../middlewares/authMiddleware');
+const { protect } = require('../../middlewares/auth.middleware');
 
 // All routes are protected - require authentication
 router.use(protect);
