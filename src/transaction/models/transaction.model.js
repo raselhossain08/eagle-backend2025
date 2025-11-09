@@ -17,7 +17,7 @@ const transactionSchema = new mongoose.Schema({
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User',
         required: true,
-        index: true,
+        // index: true, // Removed: covered by compound index at line 390
     },
     subscriptionId: {
         type: mongoose.Schema.Types.ObjectId,

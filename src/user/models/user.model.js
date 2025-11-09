@@ -603,8 +603,8 @@ userSchema.index({ nextBillingDate: 1 });
 // 4. Subscription Plan Index - For queries by specific plan
 userSchema.index({ subscriptionPlanId: 1 });
 
-// 5. Email Index - Already unique, but ensuring explicit index
-userSchema.index({ email: 1 });
+// 5. Email Index - Removed duplicate: email already has unique index from schema definition (line 22)
+// userSchema.index({ email: 1 });
 
 // 6. Compound Index: Status + End Date - Most common query pattern
 userSchema.index({ subscriptionStatus: 1, subscriptionEndDate: 1 });

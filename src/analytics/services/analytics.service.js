@@ -7,17 +7,11 @@ const {
 } = require('../models/analytics.model');
 
 const mongoose = require('mongoose');
+const SimpleAnalyticsEvent = require('../../models/SimpleAnalyticsEvent.model');
 
 // Get SimpleAnalyticsEvent model
 const getSimpleAnalyticsModel = () => {
-  return mongoose.models.SimpleAnalyticsEvent || mongoose.model('SimpleAnalyticsEvent', new mongoose.Schema({
-    type: { type: String, required: true, index: true },
-    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null, index: true },
-    sessionId: { type: String, default: null, index: true },
-    timestamp: { type: Date, default: Date.now, index: true },
-    properties: { type: mongoose.Schema.Types.Mixed, default: {} },
-    metadata: { type: mongoose.Schema.Types.Mixed, default: {} }
-  }, { timestamps: true, collection: 'simple_analytics_events' }));
+  return SimpleAnalyticsEvent;
 };
 
 class AnalyticsService {
