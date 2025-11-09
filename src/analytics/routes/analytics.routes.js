@@ -9,31 +9,6 @@ const { protect, restrictTo } = require("../../middlewares/auth.middleware");
  *   description: Analytics and tracking endpoints
  */
 
-// Explicit CORS preflight handling for public tracking endpoints
-router.options("/pageview", (req, res) => {
-  res.status(200).end();
-});
-
-router.options("/track/pageview", (req, res) => {
-  res.status(200).end();
-});
-
-router.options("/event", (req, res) => {
-  res.status(200).end();
-});
-
-router.options("/track/event", (req, res) => {
-  res.status(200).end();
-});
-
-router.options("/session", (req, res) => {
-  res.status(200).end();
-});
-
-router.options("/track/session", (req, res) => {
-  res.status(200).end();
-});
-
 // Analytics Data Endpoints (Protected - Admin/Dashboard access)
 router.get("/overview", protect, require("../controllers/analytics/getOverview"));
 router.get("/metrics", protect, require("../controllers/analytics/getMetrics"));

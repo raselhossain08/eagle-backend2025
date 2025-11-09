@@ -124,28 +124,28 @@ const corsOptions = {
     // Allow requests with no origin (mobile apps, Postman, etc.)
     if (!origin) return callback(null, true);
 
-    // In development, allow all localhost origins
-    if (config.NODE_ENV === 'development' && origin.includes('localhost')) {
-      console.log(`✅ CORS allowed (localhost): ${origin}`);
-      return callback(null, true);
-    }
-
-    // Check if origin contains allowed domains (simple string matching for reliability)
-    const allowedDomains = [
-      'eagleinvest.us',
-      'eagle-investors.com',
-      'admin.eagleinvest.us',
-      'www.eagleinvest.us'
+    // Allowed origins list - Development & Production
+    const allowedOrigins = [
+      // Development
+      'http://localhost:3000',
+      'http://localhost:3001',
+      'http://127.0.0.1:3000',
+      'http://127.0.0.1:3001',
+      // Production
+      'https://admin.eagleinvest.us',
+      'https://eagleinvest.us',
+      'https://www.eagleinvest.us',
+      'https://eagle-investors.com',
+      'https://www.eagle-investors.com'
     ];
 
-    const isAllowed = allowedDomains.some(domain => origin.includes(domain));
-
-    if (isAllowed) {
+    // Check if origin is in allowed list
+    if (allowedOrigins.includes(origin)) {
       console.log(`✅ CORS allowed: ${origin}`);
       return callback(null, true);
     }
 
-    // Also check CLIENT_URL from env
+    // Also check CLIENT_URL from env as fallback
     if (config.CLIENT_URL && origin === config.CLIENT_URL) {
       console.log(`✅ CORS allowed (CLIENT_URL): ${origin}`);
       return callback(null, true);
