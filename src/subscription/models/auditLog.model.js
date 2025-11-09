@@ -121,7 +121,7 @@ const auditLogSchema = new Schema({
     }
 }, {
     timestamps: false, // Using custom timestamp field
-    collection: 'audit_logs'
+    collection: 'subscription_audit_logs' // Use separate collection for subscription audits
 });
 
 // Compound indexes for common queries
@@ -280,14 +280,12 @@ auditLogSchema.methods.formatChanges = function () {
     return changesList.join(', ');
 };
 
-// Create and export model
-let AuditLog;
-try {
-    // Try to get existing model first (prevents OverwriteModelError)
-    AuditLog = mongoose.model('AuditLog');
-} catch (error) {
-    // Model doesn't exist, create it
-    AuditLog = mongoose.model('AuditLog', auditLogSchema);
+// Create and export model with unique name to avoid conflicts with admin AuditLog
+// Delete existing model if it exists to ensure fresh compilation with all statics
+if (mongoose.models.SubscriptionAuditLog) {
+    delete mongoose.models.SubscriptionAuditLog;
 }
 
-module.exports = AuditLog;
+const SubscriptionAuditLog = mongoose.model('SubscriptionAuditLog', auditLogSchema);
+
+module.exports = SubscriptionAuditLog;

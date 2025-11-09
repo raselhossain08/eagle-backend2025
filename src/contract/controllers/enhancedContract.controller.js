@@ -97,7 +97,31 @@ const createContractTemplate = async (req, res) => {
     const userId = req.user.id;
     const userName = req.user.name || `${req.user.firstName} ${req.user.lastName}`;
 
+    // Debug: Log received request body
+    console.log('🎯 [Controller] Received template data:', {
+      name: req.body.name,
+      category: req.body.category,
+      status: req.body.status,
+      locale: req.body.locale,
+      contentBodyLength: req.body.content?.body?.length,
+      contentHtmlLength: req.body.content?.htmlBody?.length,
+      variablesCount: req.body.content?.variables?.length,
+      hasMetadata: !!req.body.metadata,
+      hasLegal: !!req.body.legal,
+    });
+    console.log('📄 [Controller] Full content object:', JSON.stringify(req.body.content, null, 2));
+
     const template = await ContractTemplateService.createTemplate(req.body, userId, userName);
+
+    // Debug: Log created template
+    console.log('✅ [Controller] Template created:', {
+      id: template.id,
+      name: template.name,
+      contentBodyLength: template.content?.body?.length,
+      contentHtmlLength: template.content?.htmlBody?.length,
+      variablesCount: template.content?.variables?.length,
+    });
+    console.log('📄 [Controller] Created template content:', JSON.stringify(template.content, null, 2));
 
     res.status(201).json({
       success: true,
@@ -289,6 +313,43 @@ const cloneTemplate = async (req, res) => {
   } catch (error) {
     console.error('Error cloning template:', error);
     res.status(error.message.includes('not found') ? 404 : 500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+/**
+ * @desc    Delete contract template
+ * @route   DELETE /api/contracts/templates/:templateId
+ * @access  Protected
+ */
+const deleteTemplate = async (req, res) => {
+  try {
+    const { templateId } = req.params;
+    const userId = req.user.id;
+    const userName = req.user.name || `${req.user.firstName} ${req.user.lastName}`;
+
+    const template = await ContractTemplateService.deleteTemplate(
+      templateId,
+      userId,
+      userName
+    );
+
+    res.json({
+      success: true,
+      message: 'Template deleted successfully',
+      data: template
+    });
+  } catch (error) {
+    console.error('Error deleting template:', error);
+    const statusCode = error.message.includes('not found')
+      ? 404
+      : error.message.includes('being used')
+        ? 400
+        : 500;
+
+    res.status(statusCode).json({
       success: false,
       message: error.message
     });
@@ -1220,6 +1281,7 @@ module.exports = {
   getContractTemplate,
   createContractTemplate,
   updateContractTemplate,
+  deleteTemplate,
   createTemplateVersion,
   approveTemplate,
   publishTemplate,

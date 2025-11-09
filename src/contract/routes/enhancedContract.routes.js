@@ -5,6 +5,7 @@ const {
   getContractTemplate,
   createContractTemplate,
   updateContractTemplate,
+  deleteTemplate,
   createTemplateVersion,
   approveTemplate,
   publishTemplate,
@@ -517,6 +518,30 @@ router.get('/templates/:templateId', authRBAC, requireRole(['admin', 'manager', 
  *         description: Template not found
  */
 router.put('/templates/:templateId', authRBAC, requireRole(['admin', 'manager']), updateContractTemplate);
+
+/**
+ * @swagger
+ * /api/contracts/enhanced/templates/{templateId}:
+ *   delete:
+ *     summary: Delete contract template
+ *     tags: [Template Management]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: templateId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Template deleted successfully
+ *       400:
+ *         description: Cannot delete template that is in use
+ *       404:
+ *         description: Template not found
+ */
+router.delete('/templates/:templateId', authRBAC, requireRole(['admin', 'manager']), deleteTemplate);
 
 /**
  * @swagger

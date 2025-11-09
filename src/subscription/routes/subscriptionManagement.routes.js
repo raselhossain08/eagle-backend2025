@@ -8,6 +8,7 @@ const express = require('express');
 const router = express.Router();
 const { body, param, query } = require('express-validator');
 const subscriptionManagementController = require('../controllers/subscriptionManagement.controller');
+const subscriptionAnalyticsController = require('../controllers/subscription-analytics.controller');
 const { protect, restrictTo } = require('../../middlewares/auth.middleware');
 const { createAuditLogger } = require('../middlewares/auditLogger.middleware');
 const {
@@ -28,6 +29,27 @@ router.use(restrictTo('admin', 'superAdmin', 'support'));
  * @access  Admin
  */
 router.get('/analytics', analyticsLimiter, subscriptionManagementController.getAnalytics);
+
+/**
+ * @route   GET /api/subscription/analytics/mrr
+ * @desc    Get Monthly Recurring Revenue metrics
+ * @access  Admin
+ */
+router.get('/analytics/mrr', analyticsLimiter, subscriptionAnalyticsController.getMRRMetrics);
+
+/**
+ * @route   GET /api/subscription/analytics/churn
+ * @desc    Get churn analytics
+ * @access  Admin
+ */
+router.get('/analytics/churn', analyticsLimiter, subscriptionAnalyticsController.getChurnAnalytics);
+
+/**
+ * @route   GET /api/subscription/analytics/growth
+ * @desc    Get growth trends
+ * @access  Admin
+ */
+router.get('/analytics/growth', analyticsLimiter, subscriptionAnalyticsController.getGrowthTrends);
 
 /**
  * @route   GET /api/subscription/expiring-soon

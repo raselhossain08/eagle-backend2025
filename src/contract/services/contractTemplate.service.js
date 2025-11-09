@@ -16,9 +16,9 @@ class ContractTemplateService {
     if (!includeInactive) {
       query.isActive = true;
     }
-    
+
     let template = await ContractTemplate.findOne(query);
-    
+
     if (!template) {
       // Check if templateId is a valid MongoDB ObjectId and try finding by _id
       const mongoose = require('mongoose');
@@ -30,18 +30,32 @@ class ContractTemplateService {
         template = await ContractTemplate.findOne(objectIdQuery);
       }
     }
-    
+
     return template;
   }
-  
+
   /**
    * Create a new contract template
    */
   static async createTemplate(templateData, userId, userName) {
     try {
+      // Debug: Log incoming template data
+      console.log('🔧 [Service] Received templateData:', {
+        name: templateData.name,
+        category: templateData.category,
+        status: templateData.status,
+        locale: templateData.locale,
+        contentBodyLength: templateData.content?.body?.length,
+        contentHtmlLength: templateData.content?.htmlBody?.length,
+        variablesCount: templateData.content?.variables?.length,
+        hasMetadata: !!templateData.metadata,
+        hasLegal: !!templateData.legal,
+      });
+      console.log('📄 [Service] Full content object:', JSON.stringify(templateData.content, null, 2));
+
       // Generate unique template ID (never allow frontend to override this)
       const templateId = `tpl_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-      
+
       // Create clean template data without any potential ID override
       const cleanTemplateData = {
         ...templateData,
@@ -59,10 +73,42 @@ class ContractTemplateService {
         }
       };
 
+      // Debug: Log clean template data before save
+      console.log('🧹 [Service] Clean template data:', {
+        id: cleanTemplateData.id,
+        name: cleanTemplateData.name,
+        contentBodyLength: cleanTemplateData.content?.body?.length,
+        contentHtmlLength: cleanTemplateData.content?.htmlBody?.length,
+        variablesCount: cleanTemplateData.content?.variables?.length,
+      });
+      console.log('📄 [Service] Clean content object:', JSON.stringify(cleanTemplateData.content, null, 2));
+
       const template = new ContractTemplate(cleanTemplateData);
+
+      // Debug: Log template before save
+      console.log('💾 [Service] Template before save:', {
+        id: template.id,
+        name: template.name,
+        contentBodyLength: template.content?.body?.length,
+        contentHtmlLength: template.content?.htmlBody?.length,
+        variablesCount: template.content?.variables?.length,
+      });
+
       await template.save();
+
+      // Debug: Log template after save
+      console.log('✅ [Service] Template after save:', {
+        id: template.id,
+        name: template.name,
+        contentBodyLength: template.content?.body?.length,
+        contentHtmlLength: template.content?.htmlBody?.length,
+        variablesCount: template.content?.variables?.length,
+      });
+      console.log('📄 [Service] Saved content object:', JSON.stringify(template.content, null, 2));
+
       return template;
     } catch (error) {
+      console.error('❌ [Service] Error creating template:', error);
       throw new Error(`Failed to create template: ${error.message}`);
     }
   }
@@ -73,7 +119,7 @@ class ContractTemplateService {
   static async getTemplate(templateId, includeInactive = false) {
     try {
       const template = await this.findTemplateById(templateId, includeInactive);
-      
+
       if (!template) {
         throw new Error('Template not found');
       }
@@ -169,7 +215,7 @@ class ContractTemplateService {
   static async updateTemplate(templateId, updates, userId, userName) {
     try {
       const template = await this.findTemplateById(templateId);
-      
+
       if (!template) {
         throw new Error('Template not found');
       }
@@ -177,7 +223,7 @@ class ContractTemplateService {
       // Prevent modification of critical fields
       const protectedFields = ['id', '_id', 'version', 'audit.createdBy', 'audit.createdAt', 'audit.createdByName'];
       const cleanUpdates = { ...updates };
-      
+
       // Remove protected fields from updates
       delete cleanUpdates.id;
       delete cleanUpdates._id;
@@ -190,7 +236,7 @@ class ContractTemplateService {
 
       // Update template with validated data
       Object.assign(template, cleanUpdates);
-      
+
       // Update audit info
       template.audit.lastModifiedBy = userId;
       template.audit.lastModifiedByName = userName;
@@ -209,7 +255,7 @@ class ContractTemplateService {
   static async createNewVersion(templateId, updates, userId, userName) {
     try {
       const currentTemplate = await this.findTemplateById(templateId, true); // Include inactive for versioning
-      
+
       if (!currentTemplate) {
         throw new Error('Template not found');
       }
@@ -221,7 +267,7 @@ class ContractTemplateService {
       // Create new version using template method
       const newVersionData = currentTemplate.createNewVersion(updates, userId, userName);
       const newTemplate = new ContractTemplate(newVersionData);
-      
+
       await newTemplate.save();
       return newTemplate;
     } catch (error) {
@@ -235,7 +281,7 @@ class ContractTemplateService {
   static async approveTemplate(templateId, userId, userName) {
     try {
       const template = await this.findTemplateById(templateId);
-      
+
       if (!template) {
         throw new Error('Template not found');
       }
@@ -338,7 +384,7 @@ class ContractTemplateService {
   static async renderTemplate(templateId, placeholderValues, language = 'en') {
     try {
       const template = await this.getTemplate(templateId, language);
-      
+
       // Validate placeholder values
       const validationErrors = template.validatePlaceholders(placeholderValues);
       if (validationErrors.length > 0) {
@@ -347,7 +393,7 @@ class ContractTemplateService {
 
       // Render content
       const renderedContent = template.render(placeholderValues, language);
-      
+
       return {
         template: template,
         renderedContent,
@@ -370,7 +416,7 @@ class ContractTemplateService {
       }
 
       const clonedData = JSON.parse(JSON.stringify(originalTemplate.toObject()));
-      
+
       // Update clone data
       delete clonedData._id;
       delete clonedData.__v;
@@ -379,7 +425,7 @@ class ContractTemplateService {
       clonedData.version = '1.0.0';
       clonedData.previousVersionId = null;
       clonedData.isActive = false; // Clones start inactive
-      
+
       // Reset audit info
       clonedData.audit = {
         createdBy: userId,
@@ -417,7 +463,7 @@ class ContractTemplateService {
 
       // Get usage data from signed contracts
       const { SignedContract } = require('../models/contract.model');
-      
+
       const [totalSent, totalSigned, totalDeclined, totalExpired] = await Promise.all([
         SignedContract.countDocuments({ templateId }),
         SignedContract.countDocuments({ templateId, status: 'fully_signed' }),
@@ -557,16 +603,16 @@ class ContractTemplateService {
       // Check required fields
       if (!template.name) errors.push('Template name is required');
       if (!template.content.languages.size) errors.push('At least one language must be defined');
-      
+
       // Check content for each language
       for (const [lang, content] of template.content.languages) {
         if (!content.title) errors.push(`Title is required for language: ${lang}`);
         if (!content.body) errors.push(`Body content is required for language: ${lang}`);
-        
+
         // Check for placeholder usage
         const placeholders = template.placeholders.map(p => p.key);
         const usedPlaceholders = [];
-        
+
         placeholders.forEach(placeholder => {
           const regex = new RegExp(`{{${placeholder}}}`, 'g');
           if (content.body.match(regex)) {
@@ -615,7 +661,7 @@ class ContractTemplateService {
       }
 
       const exportData = template.toObject();
-      
+
       if (!includeStatistics) {
         delete exportData.statistics;
       }
@@ -634,6 +680,49 @@ class ContractTemplateService {
   }
 
   /**
+   * Delete a contract template
+   */
+  static async deleteTemplate(templateId, userId, userName) {
+    try {
+      const template = await this.findTemplateById(templateId, true);
+
+      if (!template) {
+        throw new Error('Template not found');
+      }
+
+      // Check if template is being used in active contracts
+      const { SignedContract } = require('../models/contract.model');
+      const activeContractsCount = await SignedContract.countDocuments({
+        templateId: template.id,
+        status: { $in: ['draft', 'sent', 'partially_signed'] }
+      });
+
+      if (activeContractsCount > 0) {
+        throw new Error(
+          `Cannot delete template: It is being used by ${activeContractsCount} active contract(s). Please complete or void these contracts first.`
+        );
+      }
+
+      // Perform soft delete by setting isActive to false
+      template.isActive = false;
+      template.status = 'archived';
+      template.audit = template.audit || {};
+      template.audit.lastModifiedBy = userId;
+      template.audit.lastModifiedByName = userName;
+      template.audit.lastModifiedAt = new Date();
+      template.audit.deletedBy = userId;
+      template.audit.deletedByName = userName;
+      template.audit.deletedAt = new Date();
+
+      await template.save();
+
+      return template;
+    } catch (error) {
+      throw new Error(`Failed to delete template: ${error.message}`);
+    }
+  }
+
+  /**
    * Import template from JSON
    */
   static async importTemplate(templateData, userId, userName) {
@@ -645,7 +734,7 @@ class ContractTemplateService {
 
       // Generate new ID for imported template
       const newId = `tpl_imported_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
-      
+
       const importedData = {
         ...templateData,
         id: newId,

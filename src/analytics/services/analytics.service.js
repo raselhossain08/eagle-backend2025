@@ -226,7 +226,7 @@ class AnalyticsService {
             twitter: { $sum: { $cond: [{ $eq: ['$_id.source', 'twitter'] }, '$count', 0] } },
             direct: { $sum: { $cond: [{ $eq: ['$_id.source', 'direct'] }, '$count', 0] } },
             referral: { $sum: { $cond: [{ $eq: ['$_id.source', 'referral'] }, '$count', 0] } },
-            other: { $sum: { $cond: [{ $nin: ['$_id.source', ['google', 'facebook', 'twitter', 'direct', 'referral']] }, '$count', 0] } }
+            other: { $sum: { $cond: [{ $not: { $in: ['$_id.source', ['google', 'facebook', 'twitter', 'direct', 'referral']] } }, '$count', 0] } }
           }
         },
         { $sort: { _id: 1 } }
