@@ -305,6 +305,189 @@ class AuditController {
       });
     }
   }
+  /**
+   * Export audit logs (with 2FA protection)
+   */
+  static async exportAuditLogs(req, res) {
+    try {
+      const { 
+        format = 'json',
+        startDate,
+        endDate,
+        userId,
+        action,
+        resource,
+        limit = 10000 
+      } = req.query;
+
+      // Build query
+      const query = {};
+      
+      if (userId) query.userId = userId;
+      if (action) query.action = action;
+      if (resource) query.resource = { $regex: resource, $options: 'i' };
+      
+      // Date range filter
+      if (startDate || endDate) {
+        query.createdAt = {};
+        if (startDate) query.createdAt.$gte = new Date(startDate);
+        if (endDate) query.createdAt.$lte = new Date(endDate);
+      }
+
+      // Get audit logs for export
+      const auditLogs = await AuditLog.find(query)
+        .populate('userId', 'firstName lastName email')
+        .limit(parseInt(limit))
+        .sort({ createdAt: -1 });
+
+      // Log the export action
+      await AuditLog.logAction({
+        userId: req.user.id,
+        action: 'audit_log_exported',
+        resource: 'audit_logs',
+        description: `Exported ${auditLogs.length} audit log entries in ${format} format`,
+        success: true,
+        metadata: {
+          format,
+          recordCount: auditLogs.length,
+          filters: query,
+          twoFactorVerified: req.twoFactorVerified
+        }
+      });
+
+      if (format === 'csv') {
+        // Generate CSV
+        const headers = ['Timestamp', 'User', 'Action', 'Resource', 'Description', 'Success', 'IP Address'];
+        const csvRows = [
+          headers.join(','),
+          ...auditLogs.map(log => [
+            log.createdAt?.toISOString() || '',
+            `"${log.userId ? `${log.userId.firstName} ${log.userId.lastName} (${log.userId.email})` : 'System'}"`,
+            log.action || '',
+            log.resource || '',
+            `"${(log.description || '').replace(/"/g, '""')}"`,
+            log.success !== undefined ? log.success : 'true',
+            log.ipAddress || ''
+          ].join(','))
+        ].join('\n');
+
+        res.setHeader('Content-Type', 'text/csv');
+        res.setHeader('Content-Disposition', `attachment; filename=audit-logs-${new Date().toISOString().split('T')[0]}.csv`);
+        return res.send(csvRows);
+      } else {
+        // JSON format
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Content-Disposition', `attachment; filename=audit-logs-${new Date().toISOString().split('T')[0]}.json`);
+        return res.json({
+          exportedAt: new Date().toISOString(),
+          recordCount: auditLogs.length,
+          filters: query,
+          data: auditLogs
+        });
+      }
+    } catch (error) {
+      console.error('Export Audit Logs Error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to export audit logs',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      });
+    }
+  }
+
+  /**
+   * Purge old audit logs (with 2FA protection)
+   */
+  static async purgeAuditLogs(req, res) {
+    try {
+      const { 
+        olderThanDays = 90,
+        dryRun = false,
+        keepCriticalEvents = true 
+      } = req.body;
+
+      if (olderThanDays < 30) {
+        return res.status(400).json({
+          success: false,
+          message: 'Cannot purge audit logs less than 30 days old'
+        });
+      }
+
+      const cutoffDate = new Date();
+      cutoffDate.setDate(cutoffDate.getDate() - olderThanDays);
+
+      let query = {
+        createdAt: { $lt: cutoffDate }
+      };
+
+      // Keep critical security events if specified
+      if (keepCriticalEvents) {
+        const criticalActions = [
+          'security_violation',
+          'access_denied',
+          'login_failure',
+          'two_factor_auth_failed',
+          'admin_action',
+          'data_breach_detected'
+        ];
+        
+        query.action = { $nin: criticalActions };
+      }
+
+      if (dryRun) {
+        // Just count what would be deleted
+        const count = await AuditLog.countDocuments(query);
+        
+        return res.status(200).json({
+          success: true,
+          message: `Dry run: ${count} audit log entries would be purged`,
+          data: {
+            wouldPurge: count,
+            cutoffDate,
+            dryRun: true,
+            keepCriticalEvents
+          }
+        });
+      }
+
+      // Perform actual purge
+      const result = await AuditLog.deleteMany(query);
+
+      // Log the purge action
+      await AuditLog.logAction({
+        userId: req.user.id,
+        action: 'audit_logs_purged',
+        resource: 'audit_logs',
+        description: `Purged ${result.deletedCount} audit log entries older than ${olderThanDays} days`,
+        success: true,
+        metadata: {
+          deletedCount: result.deletedCount,
+          cutoffDate,
+          olderThanDays,
+          keepCriticalEvents,
+          twoFactorVerified: req.twoFactorVerified
+        }
+      });
+
+      res.status(200).json({
+        success: true,
+        message: `Successfully purged ${result.deletedCount} audit log entries`,
+        data: {
+          deletedCount: result.deletedCount,
+          cutoffDate,
+          olderThanDays,
+          keepCriticalEvents
+        }
+      });
+    } catch (error) {
+      console.error('Purge Audit Logs Error:', error);
+      res.status(500).json({
+        success: false,
+        message: 'Failed to purge audit logs',
+        error: process.env.NODE_ENV === 'development' ? error.message : 'Internal server error'
+      });
+    }
+  }
 }
 
 module.exports = AuditController;

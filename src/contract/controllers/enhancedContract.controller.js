@@ -295,6 +295,71 @@ const cloneTemplate = async (req, res) => {
   }
 };
 
+/**
+ * @desc    Delete contract template
+ * @route   DELETE /api/contract-templates/:templateId
+ * @access  Protected - Admin, Manager
+ */
+const deleteContractTemplate = async (req, res) => {
+  try {
+    const { templateId } = req.params;
+    const { permanent = false } = req.query;
+    const userId = req.user.id;
+    const userName = `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email;
+
+    const result = await ContractTemplateService.deleteTemplate(
+      templateId,
+      userId,
+      userName,
+      permanent === 'true'
+    );
+
+    res.json({
+      success: true,
+      message: `Template ${permanent === 'true' ? 'permanently deleted' : 'moved to archive'} successfully`,
+      data: result
+    });
+  } catch (error) {
+    console.error('Error deleting template:', error);
+    res.status(error.message.includes('not found') ? 404 : 
+               error.message.includes('being used') ? 409 : 500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+/**
+ * @desc    Restore deleted contract template
+ * @route   POST /api/contract-templates/:templateId/restore
+ * @access  Protected - Admin, Manager
+ */
+const restoreContractTemplate = async (req, res) => {
+  try {
+    const { templateId } = req.params;
+    const userId = req.user.id;
+    const userName = `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email;
+
+    const restoredTemplate = await ContractTemplateService.restoreTemplate(
+      templateId,
+      userId,
+      userName
+    );
+
+    res.json({
+      success: true,
+      message: 'Template restored successfully',
+      data: restoredTemplate
+    });
+  } catch (error) {
+    console.error('Error restoring template:', error);
+    res.status(error.message.includes('not found') ? 404 : 500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
 // =============================================================================
 // CONTRACT SIGNING WORKFLOW
 // =============================================================================
@@ -1085,6 +1150,622 @@ const getAllContracts = async (req, res) => {
 };
 
 /**
+ * @desc    Get contract by ID
+ * @route   GET /api/contracts/new/:contractId
+ * @access  Protected
+ */
+const getContractById = async (req, res) => {
+  try {
+    const { contractId } = req.params;
+
+    const contract = await SignedContract.findById(contractId).lean();
+
+    if (!contract) {
+      return res.status(404).json({
+        success: false,
+        message: 'Contract not found'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: contract
+    });
+  } catch (error) {
+    console.error('❌ Get Contract By ID Error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch contract',
+      message: error.message
+    });
+  }
+};
+
+/**
+ * @desc    Create new contract
+ * @route   POST /api/contracts/new
+ * @access  Protected - Admin, Manager
+ */
+const createContract = async (req, res) => {
+  try {
+    const {
+      templateId,
+      title,
+      parties,
+      variableValues,
+      terms,
+      financialTerms
+    } = req.body;
+
+    const userId = req.user.id;
+    const userName = `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email;
+
+    // Validate required fields
+    if (!templateId || !title || !parties) {
+      return res.status(400).json({
+        success: false,
+        message: 'Missing required fields: templateId, title, parties'
+      });
+    }
+
+    // Get template to validate it exists
+    const template = await ContractTemplate.findOne({ 
+      $or: [{ id: templateId }, { _id: templateId }]
+    });
+
+    if (!template) {
+      return res.status(404).json({
+        success: false,
+        message: 'Contract template not found'
+      });
+    }
+
+    // Generate contract number
+    const contractNumber = `CNT-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+
+    // Create contract data
+    const contractData = {
+      contractNumber,
+      title,
+      templateId: template.id,
+      templateRef: template._id,
+      status: 'draft',
+      subscriberId: userId,
+      subscriberInfo: {
+        fullName: parties.primary?.name || userName,
+        email: parties.primary?.email || req.user.email,
+        phone: parties.primary?.phone || '',
+        address: parties.primary?.address || {}
+      },
+      signers: [],
+      variableValues: variableValues || {},
+      content: {
+        originalTemplate: template.content?.body || '',
+        processedContent: template.content?.body || '',
+        variables: variableValues || {}
+      },
+      terms: {
+        effectiveDate: terms?.effectiveDate || new Date(),
+        expirationDate: terms?.expirationDate || null,
+        ...terms
+      },
+      financialTerms: financialTerms || null,
+      metadata: {
+        createdBy: userId,
+        createdByName: userName,
+        templateVersion: template.version || '1.0.0',
+        locale: template.locale || 'en-US'
+      },
+      events: [{
+        type: 'contract_created',
+        timestamp: new Date(),
+        performedBy: userId,
+        performedByName: userName,
+        details: { title, templateId }
+      }]
+    };
+
+    // Add signers from parties
+    if (parties.primary?.signatureRequired !== false) {
+      contractData.signers.push({
+        signerId: parties.primary.userId || `primary_${Date.now()}`,
+        type: 'primary',
+        fullName: parties.primary.name,
+        email: parties.primary.email,
+        phone: parties.primary.phone || '',
+        address: parties.primary.address || {},
+        role: 'Primary Party',
+        signatureRequired: true,
+        status: 'pending',
+        order: 1
+      });
+    }
+
+    if (parties.secondary?.signatureRequired !== false) {
+      contractData.signers.push({
+        signerId: parties.secondary.userId || `secondary_${Date.now()}`,
+        type: 'secondary',
+        fullName: parties.secondary.name,
+        email: parties.secondary.email,
+        phone: parties.secondary.phone || '',
+        address: parties.secondary.address || {},
+        role: 'Secondary Party',
+        signatureRequired: true,
+        status: 'pending',
+        order: 2
+      });
+    }
+
+    // Add additional signers
+    if (parties.additional && Array.isArray(parties.additional)) {
+      parties.additional.forEach((party, index) => {
+        if (party.signatureRequired !== false) {
+          contractData.signers.push({
+            signerId: party.userId || `additional_${index}_${Date.now()}`,
+            type: 'additional',
+            fullName: party.name,
+            email: party.email,
+            phone: party.phone || '',
+            role: party.role || `Additional Party ${index + 1}`,
+            signatureRequired: true,
+            status: 'pending',
+            order: index + 3
+          });
+        }
+      });
+    }
+
+    const contract = new SignedContract(contractData);
+    await contract.save();
+
+    res.status(201).json({
+      success: true,
+      message: 'Contract created successfully',
+      data: contract
+    });
+  } catch (error) {
+    console.error('❌ Create Contract Error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to create contract',
+      message: error.message
+    });
+  }
+};
+
+/**
+ * @desc    Update contract
+ * @route   PUT /api/contracts/:contractId
+ * @access  Protected - Admin, Manager
+ */
+const updateContract = async (req, res) => {
+  try {
+    const { contractId } = req.params;
+    const userId = req.user.id;
+    const userName = `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email;
+
+    const contract = await SignedContract.findById(contractId);
+
+    if (!contract) {
+      return res.status(404).json({
+        success: false,
+        message: 'Contract not found'
+      });
+    }
+
+    // Check if contract can be updated (only draft and pending_review contracts)
+    if (!['draft', 'pending_review'].includes(contract.status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Contract cannot be updated in current status'
+      });
+    }
+
+    // Update contract fields
+    const allowedUpdates = ['title', 'variableValues', 'terms', 'financialTerms', 'status'];
+    const updates = {};
+
+    Object.keys(req.body).forEach(key => {
+      if (allowedUpdates.includes(key)) {
+        updates[key] = req.body[key];
+      }
+    });
+
+    // Update metadata
+    updates.updatedAt = new Date();
+    updates['metadata.updatedBy'] = userId;
+    updates['metadata.updatedByName'] = userName;
+
+    // Add event
+    if (!contract.events) contract.events = [];
+    contract.events.push({
+      type: 'contract_updated',
+      timestamp: new Date(),
+      performedBy: userId,
+      performedByName: userName,
+      details: { updates: Object.keys(updates) }
+    });
+
+    Object.assign(contract, updates);
+    await contract.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Contract updated successfully',
+      data: contract
+    });
+  } catch (error) {
+    console.error('❌ Update Contract Error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to update contract',
+      message: error.message
+    });
+  }
+};
+
+/**
+ * @desc    Delete contract
+ * @route   DELETE /api/contracts/:contractId
+ * @access  Protected - Admin, Manager
+ */
+const deleteContract = async (req, res) => {
+  try {
+    const { contractId } = req.params;
+    const { permanent = false } = req.query;
+    const userId = req.user.id;
+    const userName = `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email;
+
+    const contract = await SignedContract.findById(contractId);
+
+    if (!contract) {
+      return res.status(404).json({
+        success: false,
+        message: 'Contract not found'
+      });
+    }
+
+    // Check if contract can be deleted
+    if (['fully_signed', 'completed', 'executed'].includes(contract.status) && permanent === 'true') {
+      return res.status(409).json({
+        success: false,
+        message: 'Cannot permanently delete signed or executed contracts'
+      });
+    }
+
+    if (permanent === 'true') {
+      // Permanent deletion
+      await SignedContract.findByIdAndDelete(contractId);
+      
+      res.status(200).json({
+        success: true,
+        message: 'Contract permanently deleted',
+        data: { deleted: true, permanent: true }
+      });
+    } else {
+      // Soft delete - mark as cancelled
+      contract.status = 'cancelled';
+      contract.metadata.deletedBy = userId;
+      contract.metadata.deletedByName = userName;
+      contract.metadata.deletedAt = new Date();
+
+      // Add deletion event
+      if (!contract.events) contract.events = [];
+      contract.events.push({
+        type: 'contract_deleted',
+        timestamp: new Date(),
+        performedBy: userId,
+        performedByName: userName,
+        details: { reason: 'User requested deletion', permanent: false }
+      });
+
+      await contract.save();
+
+      res.status(200).json({
+        success: true,
+        message: 'Contract moved to cancelled status',
+        data: { deleted: true, permanent: false, contract }
+      });
+    }
+  } catch (error) {
+    console.error('❌ Delete Contract Error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete contract',
+      message: error.message
+    });
+  }
+};
+
+/**
+ * @desc    Cancel contract
+ * @route   POST /api/contracts/:contractId/cancel
+ * @access  Protected - Admin, Manager
+ */
+const cancelContract = async (req, res) => {
+  try {
+    const { contractId } = req.params;
+    const { reason } = req.body;
+    const userId = req.user.id;
+    const userName = `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email;
+
+    if (!reason || !reason.trim()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Cancellation reason is required'
+      });
+    }
+
+    const contract = await SignedContract.findById(contractId);
+
+    if (!contract) {
+      return res.status(404).json({
+        success: false,
+        message: 'Contract not found'
+      });
+    }
+
+    // Check if contract can be cancelled
+    if (['completed', 'cancelled', 'voided'].includes(contract.status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Contract cannot be cancelled in current status'
+      });
+    }
+
+    // Update contract status
+    contract.status = 'cancelled';
+    contract.cancellation = {
+      reason: reason.trim(),
+      cancelledBy: userId,
+      cancelledByName: userName,
+      cancelledAt: new Date()
+    };
+
+    // Add cancellation event
+    if (!contract.events) contract.events = [];
+    contract.events.push({
+      type: 'contract_cancelled',
+      timestamp: new Date(),
+      performedBy: userId,
+      performedByName: userName,
+      details: { reason: reason.trim() }
+    });
+
+    await contract.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Contract cancelled successfully',
+      data: contract
+    });
+  } catch (error) {
+    console.error('❌ Cancel Contract Error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to cancel contract',
+      message: error.message
+    });
+  }
+};
+
+/**
+ * @desc    Send contract for signature
+ * @route   POST /api/contracts/:contractId/send-for-signature
+ * @access  Protected - Admin, Manager
+ */
+const sendForSignature = async (req, res) => {
+  try {
+    const { contractId } = req.params;
+    const { recipients } = req.body;
+    const userId = req.user.id;
+    const userName = `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email;
+
+    const contract = await SignedContract.findById(contractId);
+
+    if (!contract) {
+      return res.status(404).json({
+        success: false,
+        message: 'Contract not found'
+      });
+    }
+
+    // Check if contract can be sent for signature
+    if (!['draft', 'pending_review', 'approved'].includes(contract.status)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Contract cannot be sent for signature in current status'
+      });
+    }
+
+    // Update contract status
+    contract.status = 'sent_for_signature';
+    contract.signatureFlow = {
+      startedAt: new Date(),
+      startedBy: userId,
+      startedByName: userName,
+      emailsSent: contract.signers.filter(s => s.email).length,
+      recipients: recipients || []
+    };
+
+    // Add signature sending event
+    if (!contract.events) contract.events = [];
+    contract.events.push({
+      type: 'signature_request_sent',
+      timestamp: new Date(),
+      performedBy: userId,
+      performedByName: userName,
+      details: { 
+        recipientCount: contract.signers.length,
+        recipients: contract.signers.map(s => ({ name: s.fullName, email: s.email }))
+      }
+    });
+
+    await contract.save();
+
+    res.status(200).json({
+      success: true,
+      message: `Contract sent for signature to ${contract.signers.length} recipients`,
+      data: contract
+    });
+  } catch (error) {
+    console.error('❌ Send For Signature Error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to send for signature',
+      message: error.message
+    });
+  }
+};
+
+/**
+ * @desc    Get signature status
+ * @route   GET /api/contracts/:contractId/signature-status
+ * @access  Protected
+ */
+const getSignatureStatus = async (req, res) => {
+  try {
+    const { contractId } = req.params;
+
+    const contract = await SignedContract.findById(contractId);
+
+    if (!contract) {
+      return res.status(404).json({
+        success: false,
+        message: 'Contract not found'
+      });
+    }
+
+    const signers = contract.signers || [];
+    const totalRequired = signers.filter(s => s.signatureRequired).length;
+    const totalSigned = signers.filter(s => s.status === 'signed').length;
+    const percentage = totalRequired > 0 ? Math.round((totalSigned / totalRequired) * 100) : 0;
+    const isFullySigned = totalRequired > 0 && totalSigned === totalRequired;
+
+    const pendingParties = signers
+      .filter(s => s.signatureRequired && s.status !== 'signed')
+      .map(s => ({
+        partyType: s.type,
+        partyIndex: s.order || 0,
+        partyName: s.fullName,
+        partyEmail: s.email
+      }));
+
+    const signedParties = signers
+      .filter(s => s.status === 'signed')
+      .map(s => ({
+        partyType: s.type,
+        partyIndex: s.order || 0,
+        partyName: s.fullName,
+        signedAt: s.signedAt || new Date().toISOString(),
+        signedBy: s.fullName
+      }));
+
+    res.status(200).json({
+      success: true,
+      data: {
+        totalRequired,
+        totalSigned,
+        percentage,
+        isFullySigned,
+        pendingParties,
+        signedParties,
+        contractStatus: contract.status
+      }
+    });
+  } catch (error) {
+    console.error('❌ Get Signature Status Error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get signature status',
+      message: error.message
+    });
+  }
+};
+
+/**
+ * @desc    Send signature reminder
+ * @route   POST /api/contracts/:contractId/signature-reminder
+ * @access  Protected - Admin, Manager
+ */
+const sendSignatureReminder = async (req, res) => {
+  try {
+    const { contractId } = req.params;
+    const { partyType, partyIndex } = req.body;
+    const userId = req.user.id;
+    const userName = `${req.user.firstName || ''} ${req.user.lastName || ''}`.trim() || req.user.email;
+
+    const contract = await SignedContract.findById(contractId);
+
+    if (!contract) {
+      return res.status(404).json({
+        success: false,
+        message: 'Contract not found'
+      });
+    }
+
+    // Find the specific signer
+    const signer = contract.signers.find(s => 
+      s.type === partyType && (partyIndex === undefined || s.order === partyIndex)
+    );
+
+    if (!signer) {
+      return res.status(404).json({
+        success: false,
+        message: 'Signer not found'
+      });
+    }
+
+    if (signer.status === 'signed') {
+      return res.status(400).json({
+        success: false,
+        message: 'Signer has already signed the contract'
+      });
+    }
+
+    // Add reminder event
+    if (!contract.events) contract.events = [];
+    contract.events.push({
+      type: 'signature_reminder_sent',
+      timestamp: new Date(),
+      performedBy: userId,
+      performedByName: userName,
+      details: { 
+        recipientName: signer.fullName,
+        recipientEmail: signer.email,
+        partyType,
+        partyIndex
+      }
+    });
+
+    // Update last reminder timestamp
+    signer.lastReminderSent = new Date();
+
+    await contract.save();
+
+    res.status(200).json({
+      success: true,
+      message: `Reminder sent to ${signer.fullName}`,
+      data: { 
+        sent: true,
+        recipient: {
+          name: signer.fullName,
+          email: signer.email,
+          type: partyType
+        }
+      }
+    });
+  } catch (error) {
+    console.error('❌ Send Signature Reminder Error:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to send reminder',
+      message: error.message
+    });
+  }
+};
+
+/**
  * Get all signatures across all contracts
  * @desc Retrieve all signatures with filtering and pagination
  * @route GET /api/contracts/signatures
@@ -1220,11 +1901,23 @@ module.exports = {
   getContractTemplate,
   createContractTemplate,
   updateContractTemplate,
+  deleteContractTemplate,
+  restoreContractTemplate,
   createTemplateVersion,
   approveTemplate,
   publishTemplate,
   getTemplateStatistics,
   cloneTemplate,
+
+  // Contract Management
+  getContractById,
+  createContract,
+  updateContract,
+  deleteContract,
+  cancelContract,
+  sendForSignature,
+  getSignatureStatus,
+  sendSignatureReminder,
 
   // Contract Signing
   initiateContractSigning,

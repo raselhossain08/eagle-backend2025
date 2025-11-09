@@ -11,6 +11,16 @@ const {
   getTemplateStatistics,
   cloneTemplate,
 
+  // Contract Management
+  getContractById,
+  createContract,
+  updateContract,
+  deleteContract,
+  cancelContract,
+  sendForSignature,
+  getSignatureStatus,
+  sendSignatureReminder,
+
   // Contract Signing
   initiateContractSigning,
   startSigningSession,
@@ -642,6 +652,235 @@ router.get('/templates/:templateId/statistics', authRBAC, requireRole(['admin', 
  *         description: Template not found
  */
 router.post('/templates/:templateId/clone', authRBAC, requireRole(['admin', 'manager']), cloneTemplate);
+
+// =============================================================================
+// CONTRACT MANAGEMENT ROUTES (Admin/Manager Access)
+// =============================================================================
+
+/**
+ * @swagger
+ * /api/contracts/enhanced/contracts/{contractId}:
+ *   get:
+ *     summary: Get contract by ID
+ *     tags: [Contract Management]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: contractId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Contract ID
+ *     responses:
+ *       200:
+ *         description: Contract retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ */
+router.get('/contracts/:contractId', authRBAC, getContractById);
+
+/**
+ * @swagger
+ * /api/contracts/enhanced/contracts:
+ *   post:
+ *     summary: Create new contract
+ *     tags: [Contract Management]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - templateId
+ *               - subscriberId
+ *               - title
+ *             properties:
+ *               templateId:
+ *                 type: string
+ *               subscriberId:
+ *                 type: string
+ *               title:
+ *                 type: string
+ *               signers:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *     responses:
+ *       201:
+ *         description: Contract created successfully
+ */
+router.post('/contracts', authRBAC, requireRole(['admin', 'manager']), createContract);
+
+/**
+ * @swagger
+ * /api/contracts/enhanced/contracts/{contractId}:
+ *   put:
+ *     summary: Update contract
+ *     tags: [Contract Management]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: contractId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *     responses:
+ *       200:
+ *         description: Contract updated successfully
+ */
+router.put('/contracts/:contractId', authRBAC, requireRole(['admin', 'manager']), updateContract);
+
+/**
+ * @swagger
+ * /api/contracts/enhanced/contracts/{contractId}:
+ *   delete:
+ *     summary: Delete contract
+ *     tags: [Contract Management]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: contractId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Contract deleted successfully
+ */
+router.delete('/contracts/:contractId', authRBAC, requireRole(['admin', 'manager']), deleteContract);
+
+/**
+ * @swagger
+ * /api/contracts/enhanced/contracts/{contractId}/cancel:
+ *   post:
+ *     summary: Cancel contract
+ *     tags: [Contract Management]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: contractId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - reason
+ *             properties:
+ *               reason:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Contract cancelled successfully
+ */
+router.post('/contracts/:contractId/cancel', authRBAC, requireRole(['admin', 'manager']), cancelContract);
+
+/**
+ * @swagger
+ * /api/contracts/enhanced/contracts/{contractId}/send-for-signature:
+ *   post:
+ *     summary: Send contract for signature
+ *     tags: [Contract Management]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: contractId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               recipients:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *     responses:
+ *       200:
+ *         description: Contract sent for signature successfully
+ */
+router.post('/contracts/:contractId/send-for-signature', authRBAC, requireRole(['admin', 'manager']), sendForSignature);
+
+/**
+ * @swagger
+ * /api/contracts/enhanced/contracts/{contractId}/signature-status:
+ *   get:
+ *     summary: Get contract signature status
+ *     tags: [Contract Management]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: contractId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Signature status retrieved successfully
+ */
+router.get('/contracts/:contractId/signature-status', authRBAC, getSignatureStatus);
+
+/**
+ * @swagger
+ * /api/contracts/enhanced/contracts/{contractId}/signature-reminder:
+ *   post:
+ *     summary: Send signature reminder
+ *     tags: [Contract Management]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: contractId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - partyType
+ *             properties:
+ *               partyType:
+ *                 type: string
+ *               partyIndex:
+ *                 type: number
+ *     responses:
+ *       200:
+ *         description: Reminder sent successfully
+ */
+router.post('/contracts/:contractId/signature-reminder', authRBAC, requireRole(['admin', 'manager']), sendSignatureReminder);
 
 // =============================================================================
 // CONTRACT INITIATION & MANAGEMENT (Admin/Manager Access)

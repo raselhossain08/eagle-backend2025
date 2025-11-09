@@ -677,6 +677,99 @@ class ContractTemplateService {
       throw new Error(`Failed to import template: ${error.message}`);
     }
   }
+
+  /**
+   * Delete template (soft delete by default)
+   */
+  static async deleteTemplate(templateId, userId, userName, permanent = false) {
+    try {
+      const template = await this.findTemplateById(templateId, true); // Include inactive templates for deletion
+      
+      if (!template) {
+        throw new Error('Template not found');
+      }
+
+      // Check if template is being used by any contracts
+      const { SignedContract } = require('../models/contract.model');
+      const contractsUsingTemplate = await SignedContract.countDocuments({
+        'template.templateRef': template.id
+      });
+
+      if (contractsUsingTemplate > 0 && permanent) {
+        throw new Error(`Cannot permanently delete template: It is being used by ${contractsUsingTemplate} contract(s)`);
+      }
+
+      if (permanent) {
+        // Permanent deletion
+        await ContractTemplate.findByIdAndDelete(template._id);
+        return { deleted: true, permanent: true };
+      } else {
+        // Soft delete - mark as inactive and archived
+        template.isActive = false;
+        template.status = 'archived';
+        template.audit.lastModifiedBy = userId;
+        template.audit.lastModifiedByName = userName;
+        template.audit.lastModifiedAt = new Date();
+        
+        // Add deletion audit entry
+        if (!template.audit.deletionHistory) {
+          template.audit.deletionHistory = [];
+        }
+        
+        template.audit.deletionHistory.push({
+          deletedBy: userId,
+          deletedByName: userName,
+          deletedAt: new Date(),
+          reason: 'User requested deletion'
+        });
+
+        await template.save();
+        return { deleted: true, permanent: false, template };
+      }
+    } catch (error) {
+      throw new Error(`Failed to delete template: ${error.message}`);
+    }
+  }
+
+  /**
+   * Restore deleted template
+   */
+  static async restoreTemplate(templateId, userId, userName) {
+    try {
+      const template = await this.findTemplateById(templateId, true);
+      
+      if (!template) {
+        throw new Error('Template not found');
+      }
+
+      if (template.isActive) {
+        throw new Error('Template is not deleted');
+      }
+
+      // Restore template
+      template.isActive = true;
+      template.status = 'draft'; // Restore as draft for review
+      template.audit.lastModifiedBy = userId;
+      template.audit.lastModifiedByName = userName;
+      template.audit.lastModifiedAt = new Date();
+
+      // Add restoration audit entry
+      if (!template.audit.restorationHistory) {
+        template.audit.restorationHistory = [];
+      }
+      
+      template.audit.restorationHistory.push({
+        restoredBy: userId,
+        restoredByName: userName,
+        restoredAt: new Date()
+      });
+
+      await template.save();
+      return template;
+    } catch (error) {
+      throw new Error(`Failed to restore template: ${error.message}`);
+    }
+  }
 }
 
 module.exports = ContractTemplateService;
