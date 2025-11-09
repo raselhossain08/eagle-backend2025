@@ -10,11 +10,9 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 const express = require("express");
-const cors = require("cors");
 const helmet = require("helmet");
 const morgan = require("morgan");
 const compression = require("compression");
-const rateLimit = require("express-rate-limit");
 const mongoSanitize = require("express-mongo-sanitize");
 const cookieParser = require("cookie-parser");
 const path = require("path");
@@ -166,26 +164,7 @@ app.use(mongoSanitize({
 // Response compression
 app.use(compression());
 
-// Rate limiting - Disable validation for trust proxy
-const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: process.env.NODE_ENV === 'production' ? 100 : 1000,
-  message: "Too many requests from this IP, please try again later.",
-  standardHeaders: true,
-  legacyHeaders: false,
-  validate: false, // Disable validation to avoid trust proxy warnings
-  keyGenerator: (req) => {
-    return req.headers['x-forwarded-for']?.split(',')[0].trim() || req.ip || 'unknown';
-  },
-  skip: (req) => {
-    if (process.env.NODE_ENV !== 'production') {
-      const clientIP = req.ip || req.connection.remoteAddress;
-      return clientIP === '127.0.0.1' || clientIP === '::1' || clientIP.includes('localhost');
-    }
-    return false;
-  }
-});
-app.use("/api", limiter);
+// Rate limiter removed - not needed
 
 // -----------------------------
 // Static Files Serving
