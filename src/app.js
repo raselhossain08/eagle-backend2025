@@ -120,8 +120,8 @@ initializeApp();
 
 // COMPLETELY DISABLE CORS - Anyone can access from anywhere
 app.use(cors({
-  origin: '*', // Allow all origins
-  credentials: false, // No credentials to match Nginx config
+  origin: true, // Allow all origins by reflecting the request origin
+  credentials: true, // Allow credentials for cookie-based auth
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
   allowedHeaders: ['*'], // All headers allowed
   exposedHeaders: ['*'], // All headers exposed
@@ -131,13 +131,15 @@ app.use(cors({
 // Handle preflight requests globally - NO RESTRICTIONS
 app.options('*', cors());
 
-// Universal CORS headers - NO RESTRICTIONS - Match Nginx
+// Universal CORS headers - NO RESTRICTIONS
 app.use((req, res, next) => {
-  // Allow ALL origins - matching Nginx
-  res.header('Access-Control-Allow-Origin', '*');
+  // Reflect the origin back to allow any origin
+  const origin = req.headers.origin || '*';
+  res.header('Access-Control-Allow-Origin', origin);
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS, HEAD');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-API-Key, Accept, Origin, Cache-Control');
-  res.header('Access-Control-Allow-Credentials', 'false'); // Match Nginx - no credentials
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, X-API-Key, Accept, Origin, Cache-Control, Set-Cookie, Cookie');
+  res.header('Access-Control-Allow-Credentials', 'true'); // Allow credentials
+  res.header('Access-Control-Expose-Headers', 'Set-Cookie, Authorization, Content-Type, Content-Length, Date');
   res.header('Access-Control-Max-Age', '86400');
 
   // Handle preflight requests immediately
