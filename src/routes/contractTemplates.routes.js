@@ -4,8 +4,7 @@ const {
     getContractTemplate,
     createContractTemplate,
     updateContractTemplate,
-    deleteContractTemplate,
-    restoreContractTemplate,
+    deleteTemplate,
     createTemplateVersion,
     approveTemplate,
     publishTemplate,
@@ -52,17 +51,10 @@ router.put('/:templateId', requireRole(['admin', 'manager']), updateContractTemp
 
 /**
  * @route   DELETE /api/contract-templates/:templateId
- * @desc    Delete contract template (soft delete by default)
+ * @desc    Delete contract template
  * @access  Admin, Manager
  */
-router.delete('/:templateId', requireRole(['admin', 'manager']), deleteContractTemplate);
-
-/**
- * @route   POST /api/contract-templates/:templateId/restore
- * @desc    Restore deleted contract template
- * @access  Admin, Manager
- */
-router.post('/:templateId/restore', requireRole(['admin', 'manager']), restoreContractTemplate);
+router.delete('/:templateId', requireRole(['admin', 'manager']), deleteTemplate);
 
 /**
  * @route   POST /api/contract-templates/:templateId/versions

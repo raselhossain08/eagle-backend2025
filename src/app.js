@@ -28,7 +28,7 @@ const paymentRoutes = require("./routes/payment.routes");
 const paypalRoutes = require("./routes/paypalRoutes");
 const contractRoutes = require("./routes/contracts.routes"); // Updated to use combined routes
 const contractTemplatesRoutes = require("./routes/contractTemplates.routes"); // Dedicated template routes
-const enhancedContractRoutes = require("./contract/routes/enhancedContract.routes"); // Enhanced contract system
+const enhancedContractRoutes = require("./contract/routes/enhancedContract.routes"); // Enhanced contract signing system
 const packageRoutes = require("./routes/package.routes");
 const basicRoutes = require("./routes/basic.routes");
 const functionRoutes = require("./routes/function.routes");
@@ -279,7 +279,7 @@ app.use("/api/payment", paymentRoutes);
 app.use("/api/paypal", paypalRoutes);
 app.use("/api/contracts", contractRoutes);
 app.use("/api/contract-templates", contractTemplatesRoutes); // Direct template access
-app.use("/api/contracts/enhanced", enhancedContractRoutes); // Enhanced contract management system
+app.use("/api/contracts/enhanced", enhancedContractRoutes); // Enhanced contract signing system
 app.use("/api/package", packageRoutes);
 app.use("/api/basics", basicRoutes);
 app.use("/api/functions", functionRoutes);
