@@ -403,3 +403,41 @@ exports.auditAccess = (action = 'unknown') => {
     next();
   };
 };
+
+/**
+ * Professional Eagle admin-only access control
+ */
+exports.adminOnly = (req, res, next) => {
+  try {
+    // Check if user exists (should be set by protect middleware)
+    if (!req.user) {
+      return res.status(401).json({
+        success: false,
+        message: "Eagle Authentication Required - Please login",
+      });
+    }
+
+    // Check if user is admin (for regular users with admin role)
+    if (req.user.role === "admin" || req.user.role === "superadmin") {
+      return next();
+    }
+
+    // Check if user has admin level (for admin users)
+    const userAdminLevel = req.tokenPayload?.adminLevel || req.user.adminLevel;
+    if (userAdminLevel) {
+      return next();
+    }
+
+    // Access denied
+    return res.status(403).json({
+      success: false,
+      message: "Eagle Access Denied - Admin privileges required",
+    });
+  } catch (error) {
+    console.error("Eagle Admin middleware error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Server error in admin verification",
+    });
+  }
+};

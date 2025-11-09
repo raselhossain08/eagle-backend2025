@@ -3,12 +3,24 @@ const router = express.Router();
 const AuditController = require('../controllers/audit.controller');
 const RBACMiddleware = require('../middlewares/rbac.middleware');
 const AdminAuthMiddleware = require('../middlewares/auth.middleware');
+const { 
+  auditLogExportProtection, 
+  securitySettingsProtection,
+  checkTwoFactorEnabled,
+  enforceAdminTwoFactor 
+} = require('../../auth/middlewares/twoFactor.middleware');
 
 // Apply admin authentication middleware to all routes
 router.use(AdminAuthMiddleware.verifyToken);
 
 // Apply RBAC permissions injection
 router.use(RBACMiddleware.injectUserPermissions);
+
+// Check 2FA status for all routes
+router.use(checkTwoFactorEnabled);
+
+// Enforce 2FA for admin users
+router.use(enforceAdminTwoFactor);
 
 /**
  * @route   GET /api/audit
@@ -55,6 +67,28 @@ router.get('/user/:userId',
 router.get('/security-events', 
   RBACMiddleware.checkPermission('security_settings', 'read'),
   AuditController.getSecurityEvents
+);
+
+/**
+ * @route   GET /api/audit/export
+ * @desc    Export audit logs (requires 2FA)
+ * @access  Private (requires security_settings:read permission + 2FA)
+ */
+router.get('/export', 
+  RBACMiddleware.checkPermission('security_settings', 'read'),
+  auditLogExportProtection,
+  AuditController.exportAuditLogs
+);
+
+/**
+ * @route   POST /api/audit/purge
+ * @desc    Purge old audit logs (requires 2FA)
+ * @access  Private (requires security_settings:write permission + 2FA)
+ */
+router.post('/purge', 
+  RBACMiddleware.checkPermission('security_settings', 'write'),
+  securitySettingsProtection,
+  AuditController.purgeAuditLogs
 );
 
 module.exports = router;
