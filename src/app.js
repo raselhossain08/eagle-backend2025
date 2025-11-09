@@ -130,7 +130,8 @@ const corsOptions = {
       'http://localhost:3001', // Alternative dev port
       'https://eagle-investors.com', // Production domain
       'https://www.eagle-investors.com', // Production domain with www
-      'https://admin.eagleinvest.us' // Admin panel
+      'https://admin.eagleinvest.us', // Admin panel
+      'https://www.admin.eagleinvest.us' // Admin panel with www
     ];
 
     // In development, allow all localhost origins
