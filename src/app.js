@@ -79,6 +79,10 @@ dotenv.config();
 // Init app first
 const app = express();
 
+// Trust proxy - Required when behind reverse proxy (Nginx, load balancer, etc.)
+// This allows Express to trust X-Forwarded-* headers
+app.set('trust proxy', true);
+
 // Connect to MongoDB and wait for it to be ready
 const initializeApp = async () => {
   try {
