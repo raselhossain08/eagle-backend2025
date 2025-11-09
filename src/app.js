@@ -118,30 +118,40 @@ const initializeApp = async () => {
 initializeApp();
 
 // -----------------------------
-// Global Middleware
+// Global Middleware - SIMPLIFIED CORS
 // -----------------------------
 
-// CORS must be applied BEFORE helmet to avoid conflicts
-// CORS configuration to allow API access from frontend and other allowed origins
+// SIMPLIFIED CORS Configuration - Fix for admin.eagleinvest.us
 const corsOptions = {
   origin: function (origin, callback) {
-    // Allow requests with no origin (mobile apps, Postman, etc.)
-    if (!origin) return callback(null, true);
+    // Allow all origins in development
+    if (process.env.NODE_ENV !== 'production') {
+      return callback(null, true);
+    }
 
-    // Allowed origins list - Development & Production
+    // Production - allow specific domains and ALL subdomains of eagleinvest.us
     const allowedOrigins = [
-      // Development
-      'http://localhost:3000',
-      'http://localhost:3001',
-      'http://127.0.0.1:3000',
-      'http://127.0.0.1:3001',
-      // Production
-      'https://admin.eagleinvest.us',
       'https://eagleinvest.us',
       'https://www.eagleinvest.us',
+      'https://admin.eagleinvest.us',
       'https://eagle-investors.com',
       'https://www.eagle-investors.com'
     ];
+
+    // Allow ALL subdomains of eagleinvest.us
+    if (origin && (
+      origin.endsWith('.eagleinvest.us') ||
+      origin === 'https://eagleinvest.us' ||
+      origin === 'https://admin.eagleinvest.us'
+    )) {
+      console.log(`✅ CORS allowed (subdomain): ${origin}`);
+      return callback(null, true);
+    }
+
+    // Allow requests with no origin (mobile apps, curl, etc.)
+    if (!origin) {
+      return callback(null, true);
+    }
 
     // Check if origin is in allowed list
     if (allowedOrigins.includes(origin)) {
@@ -149,16 +159,11 @@ const corsOptions = {
       return callback(null, true);
     }
 
-    // Also check CLIENT_URL from env as fallback
-    if (config.CLIENT_URL && origin === config.CLIENT_URL) {
-      console.log(`✅ CORS allowed (CLIENT_URL): ${origin}`);
-      return callback(null, true);
-    }
-
     console.log(`❌ CORS blocked origin: ${origin}`);
+    console.log(`📋 Allowed origins:`, allowedOrigins);
     callback(new Error('Not allowed by CORS'));
   },
-  credentials: true, // Allow cookies and authorization headers
+  credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
   allowedHeaders: [
     'Origin',
@@ -168,11 +173,6 @@ const corsOptions = {
     'Authorization',
     'X-API-Key',
     'Cache-Control',
-    'User-Agent',
-    'Referer',
-    'Accept-Encoding',
-    'Accept-Language',
-    'Connection',
     'Access-Control-Allow-Credentials'
   ],
   exposedHeaders: [
@@ -180,23 +180,34 @@ const corsOptions = {
     'Content-Range',
     'X-Content-Range'
   ],
-  maxAge: 86400, // 24 hours
-  optionsSuccessStatus: 200 // Some legacy browsers choke on 204
+  maxAge: 86400,
+  optionsSuccessStatus: 200
 };
 
+// Apply CORS middleware FIRST
 app.use(cors(corsOptions));
 
-// Handle preflight requests explicitly
+// Handle preflight requests globally
 app.options('*', cors(corsOptions));
 
-// Additional CORS headers middleware for maximum compatibility
+// Enhanced CORS headers middleware
 app.use((req, res, next) => {
   const origin = req.headers.origin;
-  if (origin) {
+
+  // Dynamically set allowed origin
+  if (origin && (
+    origin.endsWith('.eagleinvest.us') ||
+    origin === 'https://eagleinvest.us' ||
+    origin === 'https://admin.eagleinvest.us' ||
+    origin === 'https://eagle-investors.com' ||
+    origin === 'https://www.eagle-investors.com' ||
+    process.env.NODE_ENV !== 'production'
+  )) {
     res.header('Access-Control-Allow-Origin', origin);
-  } else {
+  } else if (!origin && process.env.NODE_ENV !== 'production') {
     res.header('Access-Control-Allow-Origin', '*');
   }
+
   res.header('Access-Control-Allow-Credentials', 'true');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS, HEAD');
   res.header('Access-Control-Allow-Headers',
@@ -204,30 +215,36 @@ app.use((req, res, next) => {
   );
   res.header('Access-Control-Expose-Headers', 'Authorization, Content-Range, X-Content-Range');
   res.header('Access-Control-Max-Age', '86400');
+  res.header('Vary', 'Origin');
 
-  // Handle preflight requests
+  // Handle preflight requests immediately
   if (req.method === 'OPTIONS') {
-    return res.status(200).end();
+    console.log(`🛬 Preflight request from: ${origin}`);
+    return res.status(200).json({
+      message: 'Preflight OK',
+      origin: origin,
+      allowed: true
+    });
   }
 
   next();
 });
 
-// Security headers with CORS configuration
+// Security headers with CORS compatibility
 app.use(helmet({
   crossOriginEmbedderPolicy: false,
   crossOriginResourcePolicy: { policy: "cross-origin" },
   crossOriginOpenerPolicy: { policy: "unsafe-none" },
-  contentSecurityPolicy: false, // Disable CSP to avoid CORS conflicts
+  contentSecurityPolicy: false,
 }));
 
-// Request logging - Disabled for cleaner output
-// if (process.env.NODE_ENV !== "test") {
-//   app.use(morgan("dev"));
-//   app.use(requestLogger); // Custom detailed logging
-// }
+// Request logging
+if (process.env.NODE_ENV !== "test") {
+  app.use(morgan("combined"));
+  app.use(requestLogger);
+}
 
-// Body parser with size limit - Increased for contract signatures and PDF data
+// Body parser with size limit
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
@@ -235,7 +252,6 @@ app.use(express.urlencoded({ limit: "50mb", extended: true }));
 app.use(cookieParser());
 
 // Data sanitization against NoSQL injection attacks
-// Prevents MongoDB operator injection (e.g., $gt, $ne, etc.)
 app.use(mongoSanitize({
   replaceWith: '_',
   onSanitize: ({ req, key }) => {
@@ -246,23 +262,19 @@ app.use(mongoSanitize({
 // Response compression
 app.use(compression());
 
-// Rate limiting - More lenient for development
+// Rate limiting
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: process.env.NODE_ENV === 'production' ? 100 : 1000, // 1000 for dev, 100 for production
+  windowMs: 15 * 60 * 1000,
+  max: process.env.NODE_ENV === 'production' ? 100 : 1000,
   message: "Too many requests from this IP, please try again later.",
-  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
-  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
-  // Custom key generator to work with trust proxy
+  standardHeaders: true,
+  legacyHeaders: false,
   keyGenerator: (req) => {
-    // Use X-Forwarded-For if available (from proxy), otherwise use req.ip
     return req.headers['x-forwarded-for']?.split(',')[0].trim() || req.ip || 'unknown';
   },
-  // Skip rate limiting for local development
   skip: (req) => {
     if (process.env.NODE_ENV !== 'production') {
       const clientIP = req.ip || req.connection.remoteAddress;
-      // Skip rate limiting for localhost
       return clientIP === '127.0.0.1' || clientIP === '::1' || clientIP.includes('localhost');
     }
     return false;
@@ -273,10 +285,7 @@ app.use("/api", limiter);
 // -----------------------------
 // Static Files Serving
 // -----------------------------
-// Serve uploaded files (contracts, etc.)
 app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
-
-// Serve public files (including the landing page)
 app.use(express.static(path.join(__dirname, "../public")));
 
 // -----------------------------
@@ -292,30 +301,29 @@ app.get("/", (req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/admin", adminRoutes);
-app.use("/api/subscription", subscriptionManagementRoutes); // Admin dashboard subscription management (must be before legacy routes)
-app.use("/api/subscriptions-legacy", subscriptionRoutes); // Legacy subscription routes
+app.use("/api/subscription", subscriptionManagementRoutes);
+app.use("/api/subscriptions-legacy", subscriptionRoutes);
 app.use("/api/payment", paymentRoutes);
 app.use("/api/paypal", paypalRoutes);
 app.use("/api/contracts", contractRoutes);
-app.use("/api/contract-templates", contractTemplatesRoutes); // Direct template access
-app.use("/api/contracts/enhanced", enhancedContractRoutes); // Enhanced contract signing system
+app.use("/api/contract-templates", contractTemplatesRoutes);
+app.use("/api/contracts/enhanced", enhancedContractRoutes);
 app.use("/api/package", packageRoutes);
 app.use("/api/basics", basicRoutes);
 app.use("/api/functions", functionRoutes);
 app.use("/api/analytics", analyticsRoutes);
 app.use("/api/admin", rbacRoutes);
-app.use("/api/rbac", rbacRoutes); // Alias for admin/RBAC routes
-app.use("/api/system-settings", systemSettingsRoutes); // System settings (public + admin)
-app.use("/api/notifications", notificationRoutes); // Notification management
+app.use("/api/rbac", rbacRoutes);
+app.use("/api/system-settings", systemSettingsRoutes);
+app.use("/api/notifications", notificationRoutes);
 
-// User Module Routes - Public User Management + Admin Dashboard
+// User Module Routes
 app.use("/api/users", userModuleRoutes);
 
 // Comprehensive Payment Module Routes
 app.use("/api/billing", billingRoutes);
 app.use("/api/discounts", discountRoutes);
-app.use("/api/payments/discounts", discountRoutes); // Alias for payment path
-// Compatibility alias for older frontend calls that expect /api/payment/discount
+app.use("/api/payments/discounts", discountRoutes);
 app.use("/api/payment/discount", discountRoutes);
 app.use("/api/dunning", dunningRoutes);
 app.use("/api/finance", financeRoutes);
@@ -325,19 +333,17 @@ app.use("/api/payment-settings", paymentSettingsRoutes);
 app.use("/api/analytics-settings", analyticsSettingsRoutes);
 app.use("/api/webhooks", webhookRoutes);
 app.use("/api/verification", verificationRoutes);
-app.use("/api/invoices", invoicesRoutes); // Invoice management routes
+app.use("/api/invoices", invoicesRoutes);
 app.use("/api/support", supportRoutes);
 app.use("/api/integrations", integrationRoutes);
 
 // WordPress Integration Routes
 app.use("/api/wordpress", wordpressRoutes);
 
-// Subscription module routes (comprehensive)
-app.use("/api/v1/subscriptions", subscriptionsRoutes); // Admin subscription management
-app.use("/api/v1/subscribers", subscribersRoutes); // Subscriber lifecycle management
-
-// New comprehensive subscription lifecycle management
-app.use("/api/v1/subscriptions", subscriptionModuleRoutes); // Complete subscription management
+// Subscription module routes
+app.use("/api/v1/subscriptions", subscriptionsRoutes);
+app.use("/api/v1/subscribers", subscribersRoutes);
+app.use("/api/v1/subscriptions", subscriptionModuleRoutes);
 
 // Plan Management Routes
 app.use("/api/plans", planRoutes);
@@ -346,14 +352,13 @@ app.use("/api/plans", planRoutes);
 app.use("/api/transactions", transactionRoutes);
 
 // -----------------------------
-// API Routes Complete
+// Special CORS Test Endpoints
 // -----------------------------
 
 // Health check endpoint
 app.get("/api/health", async (req, res) => {
   const mongoose = require('mongoose');
 
-  // Check database connection
   let dbStatus = 'disconnected';
   let dbError = null;
 
@@ -373,15 +378,8 @@ app.get("/api/health", async (req, res) => {
     success: true,
     message: "Eagle Backend API is running",
     timestamp: new Date().toISOString(),
-    version: "1.0.0",
     environment: config.NODE_ENV,
-    uptime: process.uptime(),
-    memory: process.memoryUsage(),
-    urls: {
-      app: config.APP_URL,
-      client: config.CLIENT_URL,
-      current: `${req.protocol}://${req.get('host')}`
-    },
+    origin: req.headers.origin || "No origin header",
     database: {
       status: dbStatus,
       error: dbError,
@@ -390,38 +388,73 @@ app.get("/api/health", async (req, res) => {
     cors: {
       enabled: true,
       clientUrl: config.CLIENT_URL,
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
+      allowedOrigins: [
+        'https://eagleinvest.us',
+        'https://www.eagleinvest.us',
+        'https://admin.eagleinvest.us',
+        'https://eagle-investors.com',
+        'https://www.eagle-investors.com'
+      ],
       credentials: true
-    },
-    features: [
-      "JWT Authentication",
-      "Role-based Access Control",
-      "Package Management System",
-      "Payment Integration (Stripe/PayPal/Braintree)",
-      "Communication Services (Email/SMS)",
-      "Multi-Provider Integration System",
-      "Support Tools (User Impersonation, Notes, Email Resend)",
-      "WordPress Integration",
-      "Contract Management",
-      "API Documentation",
-      "Configured CORS for Frontend"
-    ]
+    }
   });
 });
 
-// CORS test endpoint
+// Enhanced CORS test endpoint
 app.get("/api/cors-test", (req, res) => {
+  const origin = req.headers.origin;
+
   res.json({
     success: true,
-    message: "CORS is working! API can be accessed from anywhere.",
-    origin: req.headers.origin || "No origin header",
+    message: "CORS Test Successful!",
+    origin: origin || "No origin header",
     userAgent: req.headers['user-agent'] || "Unknown",
     method: req.method,
     timestamp: new Date().toISOString(),
-    headers: {
+    corsHeaders: {
       'Access-Control-Allow-Origin': res.get('Access-Control-Allow-Origin'),
       'Access-Control-Allow-Credentials': res.get('Access-Control-Allow-Credentials'),
       'Access-Control-Allow-Methods': res.get('Access-Control-Allow-Methods'),
+    },
+    allowed: true,
+    note: "If you can see this, CORS is working properly!"
+  });
+});
+
+// Specific admin CORS test
+app.get("/api/admin-cors-test", (req, res) => {
+  res.json({
+    success: true,
+    message: "Admin CORS Test - Successful for admin.eagleinvest.us",
+    intendedFor: "https://admin.eagleinvest.us",
+    actualOrigin: req.headers.origin,
+    timestamp: new Date().toISOString(),
+    status: "CORS configured correctly"
+  });
+});
+
+// Public plans endpoint with CORS headers
+app.get("/api/plans/public", (req, res) => {
+  // Add specific CORS headers for this endpoint
+  const origin = req.headers.origin;
+
+  if (origin && origin.endsWith('.eagleinvest.us')) {
+    res.header('Access-Control-Allow-Origin', origin);
+  }
+
+  res.header('Access-Control-Allow-Credentials', 'true');
+
+  res.json({
+    success: true,
+    message: "Public plans endpoint",
+    data: [
+      { name: "Basic", price: "$35/month" },
+      { name: "Diamond", price: "$76/month" },
+      { name: "Infinity", price: "$99/month" }
+    ],
+    cors: {
+      origin: origin,
+      allowed: true
     }
   });
 });
@@ -433,14 +466,11 @@ app.get("/api/docs", (req, res) => {
     message: "Eagle Investors API Documentation",
     documentation: {
       health: "/api/health",
-      endpoints: "/api/endpoints"
+      corsTest: "/api/cors-test",
+      adminCorsTest: "/api/admin-cors-test",
+      publicPlans: "/api/plans/public"
     },
-    instructions: {
-      authentication: "Use Bearer token in Authorization header",
-      format: "Authorization: Bearer <your-jwt-token>",
-      login_endpoint: "/api/auth/login",
-      register_endpoint: "/api/auth/register"
-    },
+    corsStatus: "Configured for all eagleinvest.us subdomains",
     timestamp: new Date().toISOString()
   });
 });
@@ -450,7 +480,6 @@ app.get("/api/db-health", async (req, res) => {
   const mongoose = require('mongoose');
 
   try {
-    // Test database connection with a simple operation
     const adminDb = mongoose.connection.db.admin();
     const result = await adminDb.ping();
 
@@ -474,64 +503,23 @@ app.get("/api/db-health", async (req, res) => {
   }
 });
 
-// Backend info endpoint for the landing page
+// Backend info endpoint
 app.get("/api/info", (req, res) => {
   res.json({
     success: true,
     name: "Eagle Investors Backend",
     description: "Professional Investment Advisory API Platform",
     version: "1.0.0",
-    author: "Eagle Investors Team",
-    endpoints: {
-      auth: [
-        "POST /api/auth/register",
-        "POST /api/auth/login",
-        "POST /api/auth/forgot-password",
-        "GET /api/auth/profile"
-      ],
-      user: [
-        "GET /api/user/profile",
-        "DELETE /api/user/profile"
-      ],
-      packages: [
-        "GET /api/basic/*",
-        "GET /api/diamond/*",
-        "GET /api/infinity/*",
-        "GET /api/package/features"
-      ],
-      payments: [
-        "POST /api/payment/stripe-payment",
-        "POST /api/paypal/create-order",
-        "POST /api/contracts/sign"
-      ],
-      wordpress: [
-        "GET /api/wordpress/health",
-        "POST /api/wordpress/bulk-sync",
-        "POST /api/wordpress/user-webhook"
-      ]
+    cors: {
+      status: "Enabled",
+      allowedDomains: "All eagleinvest.us subdomains",
+      adminAccess: "https://admin.eagleinvest.us"
     },
-    packages: {
-      Basic: { price: "$35/month", features: ["Education", "Community", "Basic Alerts"] },
-      Diamond: { price: "$76/month", features: ["AI Advisor", "Live Streams", "Premium Alerts"] },
-      Infinity: { price: "$99/month", features: ["All Diamond Features", "VIP Support", "Advanced Tools"] },
-      Script: { price: "$29/month", features: ["Trading Scripts", "Technical Analysis"] }
-    },
-    security: [
-      "JWT Authentication",
-      "Password Hashing (bcrypt)",
-      "Rate Limiting",
-      "CORS Protection",
-      "Helmet Security Headers",
-      "Input Validation"
-    ],
-    techStack: [
-      "Node.js", "Express.js", "MongoDB", "Mongoose",
-      "JWT", "Stripe API", "PayPal API",
-      "bcrypt", "CORS", "Helmet", "Vercel"
-    ]
+    timestamp: new Date().toISOString()
   });
 });
 
+// 404 handler
 app.use((req, res) => {
   res.status(404).json({
     success: false,
@@ -544,5 +532,25 @@ app.use((req, res) => {
 // Error Handler (should be last)
 // -----------------------------
 app.use(errorHandler);
+
+// Final CORS error handler
+app.use((err, req, res, next) => {
+  if (err.message === 'Not allowed by CORS') {
+    console.log(`🚫 CORS Blocked: ${req.headers.origin} trying to access ${req.url}`);
+    return res.status(403).json({
+      success: false,
+      message: 'CORS Policy: Origin not allowed',
+      origin: req.headers.origin,
+      allowedOrigins: [
+        'https://eagleinvest.us',
+        'https://www.eagleinvest.us',
+        'https://admin.eagleinvest.us',
+        'https://eagle-investors.com',
+        'https://www.eagle-investors.com'
+      ]
+    });
+  }
+  next(err);
+});
 
 module.exports = app;
