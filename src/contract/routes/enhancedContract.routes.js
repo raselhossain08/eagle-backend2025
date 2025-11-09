@@ -5,7 +5,8 @@ const {
   getContractTemplate,
   createContractTemplate,
   updateContractTemplate,
-  deleteTemplate,
+  deleteContractTemplate,
+  restoreContractTemplate,
   createTemplateVersion,
   approveTemplate,
   publishTemplate,
@@ -551,7 +552,29 @@ router.put('/templates/:templateId', authRBAC, requireRole(['admin', 'manager'])
  *       404:
  *         description: Template not found
  */
-router.delete('/templates/:templateId', authRBAC, requireRole(['admin', 'manager']), deleteTemplate);
+router.delete('/templates/:templateId', authRBAC, requireRole(['admin', 'manager']), deleteContractTemplate);
+
+/**
+ * @swagger
+ * /api/contracts/enhanced/templates/{templateId}/restore:
+ *   post:
+ *     summary: Restore deleted template
+ *     tags: [Template Management]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: templateId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Template restored successfully
+ *       404:
+ *         description: Template not found
+ */
+router.post('/templates/:templateId/restore', authRBAC, requireRole(['admin', 'manager']), restoreContractTemplate);
 
 /**
  * @swagger

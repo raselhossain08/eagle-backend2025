@@ -345,11 +345,11 @@ const deleteContractTemplate = async (req, res) => {
     });
   } catch (error) {
     console.error('Error deleting template:', error);
-    res.status(error.message.includes('not found') ? 404 : 
-               error.message.includes('being used') ? 409 : 500).json({
-      success: false,
-      message: error.message
-    });
+    res.status(error.message.includes('not found') ? 404 :
+      error.message.includes('being used') ? 409 : 500).json({
+        success: false,
+        message: error.message
+      });
   }
 };
 
@@ -1233,7 +1233,7 @@ const createContract = async (req, res) => {
     }
 
     // Get template to validate it exists
-    const template = await ContractTemplate.findOne({ 
+    const template = await ContractTemplate.findOne({
       $or: [{ id: templateId }, { _id: templateId }]
     });
 
@@ -1460,7 +1460,7 @@ const deleteContract = async (req, res) => {
     if (permanent === 'true') {
       // Permanent deletion
       await SignedContract.findByIdAndDelete(contractId);
-      
+
       res.status(200).json({
         success: true,
         message: 'Contract permanently deleted',
@@ -1619,7 +1619,7 @@ const sendForSignature = async (req, res) => {
       timestamp: new Date(),
       performedBy: userId,
       performedByName: userName,
-      details: { 
+      details: {
         recipientCount: contract.signers.length,
         recipients: contract.signers.map(s => ({ name: s.fullName, email: s.email }))
       }
@@ -1729,7 +1729,7 @@ const sendSignatureReminder = async (req, res) => {
     }
 
     // Find the specific signer
-    const signer = contract.signers.find(s => 
+    const signer = contract.signers.find(s =>
       s.type === partyType && (partyIndex === undefined || s.order === partyIndex)
     );
 
@@ -1754,7 +1754,7 @@ const sendSignatureReminder = async (req, res) => {
       timestamp: new Date(),
       performedBy: userId,
       performedByName: userName,
-      details: { 
+      details: {
         recipientName: signer.fullName,
         recipientEmail: signer.email,
         partyType,
@@ -1770,7 +1770,7 @@ const sendSignatureReminder = async (req, res) => {
     res.status(200).json({
       success: true,
       message: `Reminder sent to ${signer.fullName}`,
-      data: { 
+      data: {
         sent: true,
         recipient: {
           name: signer.fullName,
