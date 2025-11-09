@@ -3,21 +3,21 @@ const bcrypt = require("bcryptjs");
 
 const adminUserSchema = new mongoose.Schema(
   {
-    firstName: { 
-      type: String, 
+    firstName: {
+      type: String,
       required: true,
       trim: true,
       maxlength: 50
     },
-    lastName: { 
-      type: String, 
+    lastName: {
+      type: String,
       required: true,
       trim: true,
       maxlength: 50
     },
-    email: { 
-      type: String, 
-      required: true, 
+    email: {
+      type: String,
+      required: true,
       unique: true,
       lowercase: true,
       trim: true,
@@ -35,25 +35,32 @@ const adminUserSchema = new mongoose.Schema(
       maxlength: 30,
       match: [/^[a-zA-Z0-9_]+$/, 'Username can only contain letters, numbers, and underscores']
     },
-    password: { 
-      type: String, 
+    password: {
+      type: String,
       required: true,
       minlength: 8,
       validate: {
-        validator: function(password) {
+        validator: function (password) {
           // Password must contain at least one uppercase, one lowercase, one number, and one special character
           return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/.test(password);
         },
         message: 'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character'
       }
     },
-    phone: { 
-      type: String, 
+    phone: {
+      type: String,
       required: false,
       trim: true,
       match: [/^\+?[\d\s\-\(\)]+$/, 'Please provide a valid phone number']
     },
-    
+    emailVerified: {
+      type: Boolean,
+      default: false
+    },
+    emailVerifiedAt: {
+      type: Date
+    },
+
     // Admin-specific fields
     adminLevel: {
       type: String,
@@ -64,12 +71,12 @@ const adminUserSchema = new mongoose.Schema(
     department: {
       type: String,
       enum: [
-        "technology", 
-        "finance", 
-        "marketing", 
-        "support", 
-        "operations", 
-        "hr", 
+        "technology",
+        "finance",
+        "marketing",
+        "support",
+        "operations",
+        "hr",
         "legal",
         "executive"
       ],
@@ -81,7 +88,7 @@ const adminUserSchema = new mongoose.Schema(
       sparse: true,
       trim: true
     },
-    
+
     // Security & Access
     isActive: {
       type: Boolean,
@@ -99,7 +106,7 @@ const adminUserSchema = new mongoose.Schema(
       type: String,
       default: null
     },
-    
+
     // Access Control
     permissions: [{
       module: {
@@ -111,7 +118,7 @@ const adminUserSchema = new mongoose.Schema(
         enum: ["create", "read", "update", "delete", "approve", "execute"]
       }]
     }],
-    
+
     // Session Management
     lastLoginAt: {
       type: Date
@@ -126,7 +133,7 @@ const adminUserSchema = new mongoose.Schema(
     lockUntil: {
       type: Date
     },
-    
+
     // Password Management
     passwordChangedAt: {
       type: Date,
@@ -144,7 +151,7 @@ const adminUserSchema = new mongoose.Schema(
       type: Boolean,
       default: false
     },
-    
+
     // Account Activation
     activationToken: {
       type: String,
@@ -154,7 +161,7 @@ const adminUserSchema = new mongoose.Schema(
       type: Date,
       default: null
     },
-    
+
     // Admin Profile
     profilePicture: {
       type: String,
@@ -164,7 +171,7 @@ const adminUserSchema = new mongoose.Schema(
       type: String,
       maxlength: 500
     },
-    
+
     // System Information
     createdBy: {
       type: mongoose.Schema.Types.ObjectId,
@@ -176,14 +183,14 @@ const adminUserSchema = new mongoose.Schema(
       ref: 'AdminUser',
       required: false
     },
-    
+
     // Audit Fields
     metadata: {
       type: mongoose.Schema.Types.Mixed,
       default: {}
     }
   },
-  { 
+  {
     timestamps: true,
     // Add indexes for better performance
     indexes: [
@@ -199,12 +206,12 @@ const adminUserSchema = new mongoose.Schema(
 );
 
 // Virtual for full name
-adminUserSchema.virtual('fullName').get(function() {
+adminUserSchema.virtual('fullName').get(function () {
   return `${this.firstName} ${this.lastName}`;
 });
 
 // Virtual for account lock status
-adminUserSchema.virtual('isLocked').get(function() {
+adminUserSchema.virtual('isLocked').get(function () {
   return !!(this.lockUntil && this.lockUntil > Date.now());
 });
 
@@ -212,16 +219,16 @@ adminUserSchema.virtual('isLocked').get(function() {
 adminUserSchema.pre("save", async function (next) {
   // Only hash if password is modified
   if (!this.isModified("password")) return next();
-  
+
   try {
     // Hash password with cost of 12
     this.password = await bcrypt.hash(this.password, 12);
-    
+
     // Update password changed timestamp
     if (!this.isNew) {
       this.passwordChangedAt = new Date();
     }
-    
+
     next();
   } catch (error) {
     next(error);
@@ -229,7 +236,7 @@ adminUserSchema.pre("save", async function (next) {
 });
 
 // Update username to lowercase before saving
-adminUserSchema.pre("save", function(next) {
+adminUserSchema.pre("save", function (next) {
   if (this.isModified("username")) {
     this.username = this.username.toLowerCase();
   }
@@ -242,7 +249,7 @@ adminUserSchema.methods.comparePassword = function (enteredPassword) {
 };
 
 // Method to check if password was changed after JWT was issued
-adminUserSchema.methods.changedPasswordAfter = function(JWTTimestamp) {
+adminUserSchema.methods.changedPasswordAfter = function (JWTTimestamp) {
   if (this.passwordChangedAt) {
     const changedTimestamp = parseInt(this.passwordChangedAt.getTime() / 1000, 10);
     return JWTTimestamp < changedTimestamp;
@@ -251,7 +258,7 @@ adminUserSchema.methods.changedPasswordAfter = function(JWTTimestamp) {
 };
 
 // Method to increment login attempts
-adminUserSchema.methods.incLoginAttempts = function() {
+adminUserSchema.methods.incLoginAttempts = function () {
   // If we have a previous lock that has expired, restart at 1
   if (this.lockUntil && this.lockUntil < Date.now()) {
     return this.updateOne({
@@ -263,19 +270,19 @@ adminUserSchema.methods.incLoginAttempts = function() {
       }
     });
   }
-  
+
   const updates = { $inc: { loginAttempts: 1 } };
-  
+
   // Lock account after 5 failed attempts for 2 hours
   if (this.loginAttempts + 1 >= 5 && !this.isLocked) {
     updates.$set = { lockUntil: Date.now() + 2 * 60 * 60 * 1000 }; // 2 hours
   }
-  
+
   return this.updateOne(updates);
 };
 
 // Method to reset login attempts
-adminUserSchema.methods.resetLoginAttempts = function() {
+adminUserSchema.methods.resetLoginAttempts = function () {
   return this.updateOne({
     $unset: {
       loginAttempts: 1,
@@ -285,50 +292,50 @@ adminUserSchema.methods.resetLoginAttempts = function() {
 };
 
 // Method to generate password reset token
-adminUserSchema.methods.createPasswordResetToken = function() {
+adminUserSchema.methods.createPasswordResetToken = function () {
   const crypto = require('crypto');
   const resetToken = crypto.randomBytes(32).toString('hex');
-  
+
   this.passwordResetToken = crypto
     .createHash('sha256')
     .update(resetToken)
     .digest('hex');
-    
+
   this.passwordResetExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
-  
+
   return resetToken;
 };
 
 // Method to generate activation token
-adminUserSchema.methods.createActivationToken = function() {
+adminUserSchema.methods.createActivationToken = function () {
   const crypto = require('crypto');
   const activationToken = crypto.randomBytes(32).toString('hex');
-  
+
   this.activationToken = crypto
     .createHash('sha256')
     .update(activationToken)
     .digest('hex');
-    
+
   this.activationTokenExpiry = Date.now() + 24 * 60 * 60 * 1000; // 24 hours
-  
+
   return activationToken;
 };
 
 // Method to check if user has specific permission
-adminUserSchema.methods.hasPermission = function(module, action) {
+adminUserSchema.methods.hasPermission = function (module, action) {
   // Super admin has all permissions
   if (this.adminLevel === 'super_admin') {
     return true;
   }
-  
+
   const permission = this.permissions.find(p => p.module === module);
   return permission && permission.actions.includes(action);
 };
 
 // Method to add permission
-adminUserSchema.methods.addPermission = function(module, actions) {
+adminUserSchema.methods.addPermission = function (module, actions) {
   const existingPermission = this.permissions.find(p => p.module === module);
-  
+
   if (existingPermission) {
     // Add new actions to existing permission
     actions.forEach(action => {
@@ -343,15 +350,15 @@ adminUserSchema.methods.addPermission = function(module, actions) {
 };
 
 // Method to remove permission
-adminUserSchema.methods.removePermission = function(module, actions) {
+adminUserSchema.methods.removePermission = function (module, actions) {
   const permissionIndex = this.permissions.findIndex(p => p.module === module);
-  
+
   if (permissionIndex !== -1) {
     if (actions) {
       // Remove specific actions
-      this.permissions[permissionIndex].actions = 
+      this.permissions[permissionIndex].actions =
         this.permissions[permissionIndex].actions.filter(action => !actions.includes(action));
-      
+
       // Remove permission if no actions left
       if (this.permissions[permissionIndex].actions.length === 0) {
         this.permissions.splice(permissionIndex, 1);
@@ -364,7 +371,7 @@ adminUserSchema.methods.removePermission = function(module, actions) {
 };
 
 // Static method to find by email or username
-adminUserSchema.statics.findByEmailOrUsername = function(identifier) {
+adminUserSchema.statics.findByEmailOrUsername = function (identifier) {
   return this.findOne({
     $or: [
       { email: identifier.toLowerCase() },
@@ -374,30 +381,30 @@ adminUserSchema.statics.findByEmailOrUsername = function(identifier) {
 };
 
 // Static method to get admin hierarchy
-adminUserSchema.statics.getAdminHierarchy = function() {
+adminUserSchema.statics.getAdminHierarchy = function () {
   return {
-    'super_admin': { 
-      level: 1, 
+    'super_admin': {
+      level: 1,
       name: 'Super Administrator',
       description: 'Full access incl. security settings and destructive actions'
     },
-    'finance_admin': { 
-      level: 2, 
+    'finance_admin': {
+      level: 2,
       name: 'Finance Administrator',
       description: 'Billing, invoices, refunds, payouts, taxes, financial reports'
     },
-    'growth_marketing': { 
-      level: 3, 
+    'growth_marketing': {
+      level: 3,
       name: 'Growth/Marketing',
       description: 'Discounts, campaigns, announcements, analytics read'
     },
-    'support': { 
-      level: 4, 
+    'support': {
+      level: 4,
       name: 'Support Agent',
       description: 'Subscriber lookup, plan changes (non-financial), resend receipts, initiate cancellations'
     },
-    'read_only': { 
-      level: 5, 
+    'read_only': {
+      level: 5,
       name: 'Read-Only Access',
       description: 'All reports and dashboards, no writes'
     }
@@ -407,7 +414,7 @@ adminUserSchema.statics.getAdminHierarchy = function() {
 // Ensure virtual fields are serialized
 adminUserSchema.set('toJSON', {
   virtuals: true,
-  transform: function(doc, ret) {
+  transform: function (doc, ret) {
     delete ret.password;
     delete ret.twoFactorSecret;
     delete ret.passwordResetToken;
@@ -420,7 +427,7 @@ module.exports = mongoose.model("AdminUser", adminUserSchema);
 
 // Backwards-compatible mappings and convenience statics
 // Normalize commonly seen legacy values before validation to avoid enum errors
-adminUserSchema.pre('validate', function(next) {
+adminUserSchema.pre('validate', function (next) {
   // Map legacy admin values
   if (this.adminLevel && typeof this.adminLevel === 'string') {
     const v = this.adminLevel.toLowerCase().trim();
@@ -446,4 +453,4 @@ adminUserSchema.pre('validate', function(next) {
 
 // Expose enum values for other modules/scripts to use
 adminUserSchema.statics.ADMIN_LEVELS = ["super_admin", "finance_admin", "growth_marketing", "support", "read_only"];
-adminUserSchema.statics.DEPARTMENTS = ["technology","finance","marketing","support","operations","hr","legal","executive"];
+adminUserSchema.statics.DEPARTMENTS = ["technology", "finance", "marketing", "support", "operations", "hr", "legal", "executive"];

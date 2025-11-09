@@ -5,13 +5,16 @@ dotenv.config();
 
 const connectDB = async () => {
   try {
+    console.log("🔄 Attempting MongoDB connection...");
+    console.log("📍 MongoDB URI:", process.env.MONGO_URI ? "Found" : "Missing");
+
     // Configure mongoose for better connection handling
     mongoose.set('strictQuery', false);
-    
+
     const conn = await mongoose.connect(process.env.MONGO_URI);
 
     console.log("✅ MongoDB connected:", conn.connection.host);
-    
+
     // Handle connection events
     mongoose.connection.on('error', (err) => {
       console.error('❌ MongoDB connection error:', err);
@@ -34,7 +37,7 @@ const connectDB = async () => {
 
   } catch (error) {
     console.error("❌ DB connection error:", error.message);
-    
+
     // Don't exit process in serverless environments
     if (process.env.NODE_ENV !== 'production') {
       process.exit(1);

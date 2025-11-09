@@ -435,9 +435,11 @@ class TransactionService {
             };
 
             // Calculate success rate
-            result.successRate = result.totalTransactions > 0
-                ? ((result.succeededCount / result.totalTransactions) * 100).toFixed(2)
+            const successRate = result.totalTransactions > 0
+                ? parseFloat(((result.succeededCount / result.totalTransactions) * 100).toFixed(2))
                 : 0;
+
+            result.successRate = successRate;
 
             // Add daily breakdown
             result.byPeriod = dailyStats;

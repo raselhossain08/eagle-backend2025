@@ -31,7 +31,7 @@ function extractEagleToken(req) {
   if (req.headers.authorization && req.headers.authorization.startsWith("Bearer")) {
     token = req.headers.authorization.split(" ")[1];
     if (token) {
-      console.info('🔐 EAGLE AUTH: Token found in Authorization header');
+      // // // console.info('🔐 EAGLE AUTH: Token found in Authorization header');
       return token;
     }
   }
@@ -41,7 +41,7 @@ function extractEagleToken(req) {
     for (const cookieName of EAGLE_TOKEN_CONFIG.COOKIE_NAMES) {
       if (req.cookies[cookieName]) {
         token = req.cookies[cookieName];
-        console.info(`🔐 EAGLE AUTH: Token found in ${cookieName} cookie`);
+        // console.info(`🔐 EAGLE AUTH: Token found in ${cookieName} cookie`);
         return token;
       }
     }
@@ -50,7 +50,7 @@ function extractEagleToken(req) {
     for (const cookieName of EAGLE_TOKEN_CONFIG.LEGACY_COOKIE_NAMES) {
       if (req.cookies[cookieName]) {
         token = req.cookies[cookieName];
-        console.warn(`⚠️ EAGLE AUTH: Legacy token found in ${cookieName}, consider upgrading`);
+        // console.warn(`⚠️ EAGLE AUTH: Legacy token found in ${cookieName}, consider upgrading`);
         return token;
       }
     }
@@ -91,16 +91,16 @@ exports.protect = async (req, res, next) => {
         // Look in AdminUser model for admin tokens
         currentUser = await AdminUser.findById(userId).select("-password");
 
-        if (process.env.NODE_ENV === 'development') {
-          console.info('🔐 EAGLE AUTH: Looking up admin user', { userId, adminLevel: decoded.adminLevel });
-        }
+        // if (process.env.NODE_ENV === 'development') {
+        //   // // console.info('🔐 EAGLE AUTH: Looking up admin user', { userId, adminLevel: decoded.adminLevel });
+        // }
       } else {
         // Look in regular User model for regular user tokens
         currentUser = await User.findById(userId).select("-password");
 
-        if (process.env.NODE_ENV === 'development') {
-          console.info('🔐 EAGLE AUTH: Looking up regular user', { userId });
-        }
+        // if (process.env.NODE_ENV === 'development') {
+        //   // // console.info('🔐 EAGLE AUTH: Looking up regular user', { userId });
+        // }
       }
 
       if (!currentUser) {
@@ -146,7 +146,7 @@ exports.protect = async (req, res, next) => {
       } else if (error.name === "NotBeforeError") {
         throw createError(401, "Eagle Token Not Active - Token not yet valid");
       } else {
-        console.error('🚫 EAGLE AUTH: Token verification failed:', error.message);
+        // // console.error('🚫 EAGLE AUTH: Token verification failed:', error.message);
         throw error;
       }
     }
@@ -169,7 +169,7 @@ exports.optionalAuth = async (req, res, next) => {
       req.isGuest = true;
 
       if (process.env.NODE_ENV === 'development') {
-        console.info('👤 EAGLE AUTH: Continuing as guest user');
+        // // console.info('👤 EAGLE AUTH: Continuing as guest user');
       }
 
       return next();
@@ -200,7 +200,7 @@ exports.optionalAuth = async (req, res, next) => {
         req.isGuest = true;
 
         if (process.env.NODE_ENV === 'development') {
-          console.warn('⚠️ EAGLE AUTH: User not found, continuing as guest');
+          // // console.warn('⚠️ EAGLE AUTH: User not found, continuing as guest');
         }
 
         return next();
@@ -225,10 +225,10 @@ exports.optionalAuth = async (req, res, next) => {
       }
 
       if (process.env.NODE_ENV === 'development') {
-        console.info('✅ EAGLE AUTH: Optional authentication successful', {
-          userId: currentUser._id,
-          email: currentUser.email
-        });
+        // console.info('✅ EAGLE AUTH: Optional authentication successful', {
+        //   userId: currentUser._id,
+        //   email: currentUser.email
+        // });
       }
 
       next();
@@ -240,7 +240,7 @@ exports.optionalAuth = async (req, res, next) => {
       req.authError = error.message;
 
       if (process.env.NODE_ENV === 'development') {
-        console.warn('⚠️ EAGLE AUTH: Token validation failed, continuing as guest:', error.message);
+        // // console.warn('⚠️ EAGLE AUTH: Token validation failed, continuing as guest:', error.message);
       }
 
       next();
@@ -261,21 +261,21 @@ exports.restrictTo = (...roles) => {
 
     if (!roles.includes(req.user.role)) {
       if (process.env.NODE_ENV === 'development') {
-        console.warn('🚫 EAGLE RBAC: Access denied', {
-          userRole: req.user.role,
-          requiredRoles: roles,
-          userId: req.user._id
-        });
+        // console.warn('🚫 EAGLE RBAC: Access denied', {
+        //   userRole: req.user.role,
+        //   requiredRoles: roles,
+        //   userId: req.user._id
+        // });
       }
 
       return next(createError(403, `Eagle Access Denied - Role '${req.user.role}' insufficient. Required: ${roles.join(', ')}`));
     }
 
     if (process.env.NODE_ENV === 'development') {
-      console.info('✅ EAGLE RBAC: Access granted', {
-        userRole: req.user.role,
-        userId: req.user._id
-      });
+      // console.info('✅ EAGLE RBAC: Access granted', {
+      //   userRole: req.user.role,
+      //   userId: req.user._id
+      // });
     }
 
     next();
@@ -296,21 +296,21 @@ exports.requireAdminLevel = (...adminLevels) => {
 
     if (!adminLevels.includes(userAdminLevel)) {
       if (process.env.NODE_ENV === 'development') {
-        console.warn('🚫 EAGLE ADMIN: Admin access denied', {
-          userAdminLevel,
-          requiredLevels: adminLevels,
-          userId: req.user._id
-        });
+        // console.warn('🚫 EAGLE ADMIN: Admin access denied', {
+        //   userAdminLevel,
+        //   requiredLevels: adminLevels,
+        //   userId: req.user._id
+        // });
       }
 
       return next(createError(403, `Eagle Admin Access Denied - Level '${userAdminLevel}' insufficient. Required: ${adminLevels.join(', ')}`));
     }
 
     if (process.env.NODE_ENV === 'development') {
-      console.info('✅ EAGLE ADMIN: Admin access granted', {
-        userAdminLevel,
-        userId: req.user._id
-      });
+      // console.info('✅ EAGLE ADMIN: Admin access granted', {
+      //   userAdminLevel,
+      //   userId: req.user._id
+      // });
     }
 
     next();
@@ -328,11 +328,11 @@ exports.requireSubscription = (...subscriptions) => {
 
     if (!subscriptions.includes(req.user.subscription)) {
       if (process.env.NODE_ENV === 'development') {
-        console.warn('🚫 EAGLE SUBSCRIPTION: Access denied', {
-          userSubscription: req.user.subscription,
-          requiredSubscriptions: subscriptions,
-          userId: req.user._id
-        });
+        // console.warn('🚫 EAGLE SUBSCRIPTION: Access denied', {
+        //   userSubscription: req.user.subscription,
+        //   requiredSubscriptions: subscriptions,
+        //   userId: req.user._id
+        // });
       }
 
       return next(
@@ -341,10 +341,10 @@ exports.requireSubscription = (...subscriptions) => {
     }
 
     if (process.env.NODE_ENV === 'development') {
-      console.info('✅ EAGLE SUBSCRIPTION: Access granted', {
-        userSubscription: req.user.subscription,
-        userId: req.user._id
-      });
+      // console.info('✅ EAGLE SUBSCRIPTION: Access granted', {
+      //   userSubscription: req.user.subscription,
+      //   userId: req.user._id
+      // });
     }
 
     next();
@@ -361,20 +361,20 @@ exports.adminOnly = (req, res, next) => {
 
   if (req.user.role !== 'admin') {
     if (process.env.NODE_ENV === 'development') {
-      console.warn('🚫 EAGLE ADMIN: Admin access denied', {
-        userRole: req.user.role,
-        userId: req.user._id
-      });
+      // console.warn('🚫 EAGLE ADMIN: Admin access denied', {
+      //   userRole: req.user.role,
+      //   userId: req.user._id
+      // });
     }
 
     return next(createError(403, `Eagle Admin Access Denied - Admin role required, current role: '${req.user.role}'`));
   }
 
   if (process.env.NODE_ENV === 'development') {
-    console.info('✅ EAGLE ADMIN: Admin access granted', {
-      userRole: req.user.role,
-      userId: req.user._id
-    });
+    // console.info('✅ EAGLE ADMIN: Admin access granted', {
+    //   userRole: req.user.role,
+    //   userId: req.user._id
+    // });
   }
 
   next();
@@ -387,18 +387,18 @@ exports.auditAccess = (action = 'unknown') => {
   return (req, res, next) => {
     if (req.user) {
       // Log access for security auditing
-      console.info('🔍 EAGLE AUDIT:', {
-        action,
-        userId: req.user._id,
-        email: req.user.email,
-        role: req.user.role,
-        adminLevel: req.tokenPayload?.adminLevel,
-        ip: req.ip,
-        userAgent: req.get('User-Agent'),
-        timestamp: new Date().toISOString(),
-        path: req.path,
-        method: req.method
-      });
+      // console.info('🔍 EAGLE AUDIT:', {
+      //   action,
+      //   userId: req.user._id,
+      //   email: req.user.email,
+      //   role: req.user.role,
+      //   adminLevel: req.tokenPayload?.adminLevel,
+      //   ip: req.ip,
+      //   userAgent: req.get('User-Agent'),
+      //   timestamp: new Date().toISOString(),
+      //   path: req.path,
+      //   method: req.method
+      // });
     }
     next();
   };

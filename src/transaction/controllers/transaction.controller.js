@@ -87,13 +87,19 @@ exports.getTransactionById = async (req, res) => {
  */
 exports.getTransactionStats = async (req, res) => {
     try {
-        const userId = req.user.id;
+        // Only filter by userId if user is not admin
+        const userId = req.user?.role === 'admin' ? undefined : req.user.id;
+
         const filters = {
-            userId,
             startDate: req.query.startDate,
             endDate: req.query.endDate,
             type: req.query.type,
         };
+
+        // Add userId filter only if not admin
+        if (userId) {
+            filters.userId = userId;
+        }
 
         const result = await transactionService.getTransactionStats(filters);
 
@@ -102,7 +108,7 @@ exports.getTransactionStats = async (req, res) => {
             stats: result.stats,
         });
     } catch (error) {
-        console.error('Error fetching transaction stats:', error);
+        console.error('❌ Error fetching transaction stats:', error);
         res.status(500).json({
             success: false,
             message: 'Failed to fetch transaction statistics',

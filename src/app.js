@@ -1,9 +1,21 @@
+// Catch any unhandled errors during module loading
+process.on('uncaughtException', (err) => {
+  console.error('💥 UNCAUGHT EXCEPTION during app initialization:', err);
+  console.error('Stack:', err.stack);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('💥 UNHANDLED REJECTION during app initialization:', reason);
+  console.error('Promise:', promise);
+});
+
 const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const morgan = require("morgan");
 const compression = require("compression");
 const rateLimit = require("express-rate-limit");
+const mongoSanitize = require("express-mongo-sanitize");
 const cookieParser = require("cookie-parser");
 const path = require("path");
 const connectDB = require("./config/db");
@@ -11,6 +23,7 @@ const authRoutes = require("./routes/auth.routes");
 const userRoutes = require("./routes/user.routes");
 const adminRoutes = require("./routes/admin.routes");
 const subscriptionRoutes = require("./routes/subscription.routes");
+const subscriptionManagementRoutes = require("./subscription/routes/subscriptionManagement.routes"); // Admin dashboard subscription management
 const paymentRoutes = require("./routes/payment.routes");
 const paypalRoutes = require("./routes/paypalRoutes");
 const contractRoutes = require("./routes/contracts.routes"); // Updated to use combined routes
@@ -39,12 +52,20 @@ const integrationRoutes = require("./integrations/routes/index");
 
 // Subscription module routes
 const { subscriptionsRoutes, subscribersRoutes } = require("./subscription");
+const subscriptionModuleRoutes = require("./subscription/routes/index");
 
 // Plan Management Routes
 const { planRoutes } = require("./plans");
 
 // Transaction Module Routes
-const { transactionRoutes } = require("./transaction");
+const transactionRoutes = require("./transaction/routes/transaction.routes");
+const paymentSettingsRoutes = require("./routes/paymentSettings.routes");
+const analyticsSettingsRoutes = require("./routes/analyticsSettings.routes");
+const webhookRoutes = require("./routes/webhook.routes");
+const verificationRoutes = require("./routes/verification.routes");
+
+// WordPress Integration Routes
+const wordpressRoutes = require("./wordpress/routes/wordpress.routes");
 
 const errorHandler = require("./middlewares/errorHandler");
 const requestLogger = require("./middlewares/requestLogger");
@@ -185,11 +206,11 @@ app.use(helmet({
   contentSecurityPolicy: false, // Disable CSP to avoid CORS conflicts
 }));
 
-// Request logging
-if (process.env.NODE_ENV !== "test") {
-  app.use(morgan("dev"));
-  app.use(requestLogger); // Custom detailed logging
-}
+// Request logging - Disabled for cleaner output
+// if (process.env.NODE_ENV !== "test") {
+//   app.use(morgan("dev"));
+//   app.use(requestLogger); // Custom detailed logging
+// }
 
 // Body parser with size limit - Increased for contract signatures and PDF data
 app.use(express.json({ limit: "50mb" }));
@@ -197,6 +218,15 @@ app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 // Cookie parser for JWT in cookies
 app.use(cookieParser());
+
+// Data sanitization against NoSQL injection attacks
+// Prevents MongoDB operator injection (e.g., $gt, $ne, etc.)
+app.use(mongoSanitize({
+  replaceWith: '_',
+  onSanitize: ({ req, key }) => {
+    console.warn(`⚠️  NoSQL injection attempt blocked: ${key} in request from ${req.ip}`);
+  }
+}));
 
 // Response compression
 app.use(compression());
@@ -242,7 +272,8 @@ app.get("/", (req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/user", userRoutes);
 app.use("/api/admin", adminRoutes);
-app.use("/api/subscription", subscriptionRoutes); // Legacy subscription routes
+app.use("/api/subscription", subscriptionManagementRoutes); // Admin dashboard subscription management (must be before legacy routes)
+app.use("/api/subscriptions-legacy", subscriptionRoutes); // Legacy subscription routes
 app.use("/api/payment", paymentRoutes);
 app.use("/api/paypal", paypalRoutes);
 app.use("/api/contracts", contractRoutes);
@@ -269,13 +300,23 @@ app.use("/api/dunning", dunningRoutes);
 app.use("/api/finance", financeRoutes);
 app.use("/api/tax", taxRoutes);
 app.use("/api/payment-processors", paymentProcessorsRoutes);
+app.use("/api/payment-settings", paymentSettingsRoutes);
+app.use("/api/analytics-settings", analyticsSettingsRoutes);
+app.use("/api/webhooks", webhookRoutes);
+app.use("/api/verification", verificationRoutes);
 app.use("/api/invoices", invoicesRoutes); // Invoice management routes
 app.use("/api/support", supportRoutes);
 app.use("/api/integrations", integrationRoutes);
 
+// WordPress Integration Routes
+app.use("/api/wordpress", wordpressRoutes);
+
 // Subscription module routes (comprehensive)
 app.use("/api/v1/subscriptions", subscriptionsRoutes); // Admin subscription management
 app.use("/api/v1/subscribers", subscribersRoutes); // Subscriber lifecycle management
+
+// New comprehensive subscription lifecycle management
+app.use("/api/v1/subscriptions", subscriptionModuleRoutes); // Complete subscription management
 
 // Plan Management Routes
 app.use("/api/plans", planRoutes);

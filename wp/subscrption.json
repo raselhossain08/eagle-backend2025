@@ -1,0 +1,1461 @@
+{
+  "success": true,
+  "data": {
+    "subscriptions": [
+      {
+        "id": 201896,
+        "status": "active",
+        "billing_period": "month",
+        "billing_interval": "1",
+        "total": "67.00",
+        "currency": "USD",
+        "start_date": "2025-10-27 10:20:58",
+        "trial_end_date": 0,
+        "next_payment_date": "2025-11-27 10:20:58",
+        "end_date": 0,
+        "customer": {
+          "id": 3397,
+          "email": "kmrarun1223@gmail.com",
+          "first_name": "Arun",
+          "last_name": "Kumar Gorantla"
+        },
+        "parent_order_id": 201895,
+        "payment_method": "stripe",
+        "items": [
+          {
+            "product_id": 198787,
+            "name": "Eagle Premium Monthly",
+            "quantity": 1,
+            "total": "67",
+            "sku": ""
+          }
+        ]
+      },
+      {
+        "id": 201886,
+        "status": "active",
+        "billing_period": "month",
+        "billing_interval": "1",
+        "total": "67.00",
+        "currency": "USD",
+        "start_date": "2025-10-21 18:25:49",
+        "trial_end_date": 0,
+        "next_payment_date": "2025-11-21 18:25:49",
+        "end_date": 0,
+        "customer": {
+          "id": 4077,
+          "email": "vinaynallla5@gmail.com",
+          "first_name": "",
+          "last_name": ""
+        },
+        "parent_order_id": 201885,
+        "payment_method": "ppcp",
+        "items": [
+          {
+            "product_id": 198787,
+            "name": "Eagle Premium Monthly",
+            "quantity": 1,
+            "total": "67",
+            "sku": ""
+          }
+        ]
+      },
+      {
+        "id": 201881,
+        "status": "active",
+        "billing_period": "month",
+        "billing_interval": "1",
+        "total": "67.00",
+        "currency": "USD",
+        "start_date": "2025-10-18 14:58:11",
+        "trial_end_date": 0,
+        "next_payment_date": "2025-11-18 14:58:11",
+        "end_date": 0,
+        "customer": {
+          "id": 3840,
+          "email": "kushaal730@gmail.com",
+          "first_name": "",
+          "last_name": ""
+        },
+        "parent_order_id": 201880,
+        "payment_method": "stripe",
+        "items": [
+          {
+            "product_id": 198787,
+            "name": "Eagle Premium Monthly",
+            "quantity": 1,
+            "total": "67",
+            "sku": ""
+          }
+        ]
+      },
+      {
+        "id": 201873,
+        "status": "active",
+        "billing_period": "year",
+        "billing_interval": "1",
+        "total": "670.00",
+        "currency": "USD",
+        "start_date": "2025-10-11 00:39:53",
+        "trial_end_date": 0,
+        "next_payment_date": "2026-10-11 00:39:53",
+        "end_date": 0,
+        "customer": {
+          "id": 4076,
+          "email": "varatharajanm@gmail.com",
+          "first_name": "",
+          "last_name": ""
+        },
+        "parent_order_id": 201872,
+        "payment_method": "ppcp",
+        "items": [
+          {
+            "product_id": 198788,
+            "name": "Eagle Premium Annual",
+            "quantity": 1,
+            "total": "670",
+            "sku": ""
+          }
+        ]
+      },
+      {
+        "id": 201850,
+        "status": "cancelled",
+        "billing_period": "month",
+        "billing_interval": "1",
+        "total": "67.00",
+        "currency": "USD",
+        "start_date": "2025-10-01 23:10:27",
+        "trial_end_date": 0,
+        "next_payment_date": 0,
+        "end_date": "2025-10-17 18:32:38",
+        "customer": {
+          "id": 4074,
+          "email": "minguri10@gmail.com",
+          "first_name": "",
+          "last_name": ""
+        },
+        "parent_order_id": 201849,
+        "payment_method": "ppcp",
+        "items": [
+          {
+            "product_id": 198787,
+            "name": "Eagle Premium Monthly",
+            "quantity": 1,
+            "total": "67",
+            "sku": ""
+          }
+        ]
+      },
+      {
+        "id": 201835,
+        "status": "pending-cancel",
+        "billing_period": "month",
+        "billing_interval": "1",
+        "total": "67.00",
+        "currency": "USD",
+        "start_date": "2025-09-23 05:07:42",
+        "trial_end_date": 0,
+        "next_payment_date": 0,
+        "end_date": "2025-11-23 05:12:57",
+        "customer": {
+          "id": 4073,
+          "email": "sharma147.shubhamk@gmail.com",
+          "first_name": "Shubham",
+          "last_name": "Sharma"
+        },
+        "parent_order_id": 201834,
+        "payment_method": "stripe",
+        "items": [
+          {
+            "product_id": 198787,
+            "name": "Eagle Premium Monthly",
+            "quantity": 1,
+            "total": "67",
+            "sku": ""
+          }
+        ]
+      },
+      {
+        "id": 201831,
+        "status": "active",
+        "billing_period": "year",
+        "billing_interval": "1",
+        "total": "670.00",
+        "currency": "USD",
+        "start_date": "2025-09-22 19:07:50",
+        "trial_end_date": 0,
+        "next_payment_date": "2026-09-22 19:07:50",
+        "end_date": 0,
+        "customer": {
+          "id": 2865,
+          "email": "rs@panemo.org",
+          "first_name": "Rene",
+          "last_name": "Schülke"
+        },
+        "parent_order_id": 201830,
+        "payment_method": "ppcp",
+        "items": [
+          {
+            "product_id": 198788,
+            "name": "Eagle Premium Annual",
+            "quantity": 1,
+            "total": "670",
+            "sku": ""
+          }
+        ]
+      },
+      {
+        "id": 201824,
+        "status": "cancelled",
+        "billing_period": "month",
+        "billing_interval": "1",
+        "total": "67.00",
+        "currency": "USD",
+        "start_date": "2025-09-17 13:23:09",
+        "trial_end_date": 0,
+        "next_payment_date": 0,
+        "end_date": "2025-10-17 13:23:20",
+        "customer": {
+          "id": 4029,
+          "email": "zenbytesolutions@gmail.com",
+          "first_name": "",
+          "last_name": ""
+        },
+        "parent_order_id": 201823,
+        "payment_method": "ppcp",
+        "items": [
+          {
+            "product_id": 198787,
+            "name": "Eagle Premium Monthly",
+            "quantity": 1,
+            "total": "67",
+            "sku": ""
+          }
+        ]
+      },
+      {
+        "id": 201815,
+        "status": "active",
+        "billing_period": "month",
+        "billing_interval": "1",
+        "total": "67.00",
+        "currency": "USD",
+        "start_date": "2025-09-10 20:57:33",
+        "trial_end_date": 0,
+        "next_payment_date": "2025-11-10 20:58:50",
+        "end_date": 0,
+        "customer": {
+          "id": 3883,
+          "email": "jpanther0@gmail.com",
+          "first_name": "",
+          "last_name": ""
+        },
+        "parent_order_id": 201814,
+        "payment_method": "stripe",
+        "items": [
+          {
+            "product_id": 198787,
+            "name": "Eagle Premium Monthly",
+            "quantity": 1,
+            "total": "67",
+            "sku": ""
+          }
+        ]
+      },
+      {
+        "id": 201811,
+        "status": "active",
+        "billing_period": "month",
+        "billing_interval": "1",
+        "total": "67.00",
+        "currency": "USD",
+        "start_date": "2025-09-10 15:42:43",
+        "trial_end_date": 0,
+        "next_payment_date": "2025-11-10 15:44:43",
+        "end_date": 0,
+        "customer": {
+          "id": 3521,
+          "email": "raghavreddysfdc@gmail.com",
+          "first_name": "",
+          "last_name": ""
+        },
+        "parent_order_id": 201810,
+        "payment_method": "stripe",
+        "items": [
+          {
+            "product_id": 198787,
+            "name": "Eagle Premium Monthly",
+            "quantity": 1,
+            "total": "67",
+            "sku": ""
+          }
+        ]
+      },
+      {
+        "id": 201807,
+        "status": "active",
+        "billing_period": "year",
+        "billing_interval": "1",
+        "total": "670.00",
+        "currency": "USD",
+        "start_date": "2025-09-08 17:31:37",
+        "trial_end_date": 0,
+        "next_payment_date": "2026-09-08 17:31:37",
+        "end_date": 0,
+        "customer": {
+          "id": 3882,
+          "email": "naveenb0513@gmail.com",
+          "first_name": "Naveen",
+          "last_name": "Bobbili"
+        },
+        "parent_order_id": 201806,
+        "payment_method": "stripe",
+        "items": [
+          {
+            "product_id": 198788,
+            "name": "Eagle Premium Annual",
+            "quantity": 1,
+            "total": "670",
+            "sku": ""
+          }
+        ]
+      },
+      {
+        "id": 201802,
+        "status": "on-hold",
+        "billing_period": "month",
+        "billing_interval": "1",
+        "total": "67.00",
+        "currency": "USD",
+        "start_date": "2025-09-06 17:46:34",
+        "trial_end_date": 0,
+        "next_payment_date": "2025-10-06 17:46:34",
+        "end_date": 0,
+        "customer": {
+          "id": 3881,
+          "email": "prasad.d.anandappa@gmail.com",
+          "first_name": "Prasad",
+          "last_name": "dimba anandappa"
+        },
+        "parent_order_id": 201801,
+        "payment_method": "stripe",
+        "items": [
+          {
+            "product_id": 198787,
+            "name": "Eagle Premium Monthly",
+            "quantity": 1,
+            "total": "67",
+            "sku": ""
+          }
+        ]
+      },
+      {
+        "id": 201792,
+        "status": "active",
+        "billing_period": "month",
+        "billing_interval": "1",
+        "total": "67.00",
+        "currency": "USD",
+        "start_date": "2025-09-04 19:57:54",
+        "trial_end_date": 0,
+        "next_payment_date": "2025-11-04 19:58:11",
+        "end_date": 0,
+        "customer": {
+          "id": 3879,
+          "email": "abrahamkobi@gmail.com",
+          "first_name": "Abraham",
+          "last_name": "Kobi"
+        },
+        "parent_order_id": 201791,
+        "payment_method": "stripe",
+        "items": [
+          {
+            "product_id": 198787,
+            "name": "Eagle Premium Monthly",
+            "quantity": 1,
+            "total": "67",
+            "sku": ""
+          }
+        ]
+      },
+      {
+        "id": 201787,
+        "status": "cancelled",
+        "billing_period": "month",
+        "billing_interval": "1",
+        "total": "0.00",
+        "currency": "USD",
+        "start_date": "2025-09-02 01:47:39",
+        "trial_end_date": 0,
+        "next_payment_date": 0,
+        "end_date": "2025-09-14 19:47:47",
+        "customer": {
+          "id": 3878,
+          "email": "aaron58.lin@gmail.com",
+          "first_name": "ShihLun",
+          "last_name": "Lin"
+        },
+        "parent_order_id": 201786,
+        "payment_method": "stripe",
+        "items": []
+      },
+      {
+        "id": 201785,
+        "status": "cancelled",
+        "billing_period": "month",
+        "billing_interval": "1",
+        "total": "67.00",
+        "currency": "USD",
+        "start_date": "2025-09-02 00:36:19",
+        "trial_end_date": 0,
+        "next_payment_date": 0,
+        "end_date": "2025-10-02 00:37:22",
+        "customer": {
+          "id": 1933,
+          "email": "jorgegzc@gmail.com",
+          "first_name": "",
+          "last_name": ""
+        },
+        "parent_order_id": 201784,
+        "payment_method": "ppcp",
+        "items": [
+          {
+            "product_id": 198787,
+            "name": "Eagle Premium Monthly",
+            "quantity": 1,
+            "total": "67",
+            "sku": ""
+          }
+        ]
+      },
+      {
+        "id": 201750,
+        "status": "cancelled",
+        "billing_period": "month",
+        "billing_interval": "1",
+        "total": "67.00",
+        "currency": "USD",
+        "start_date": "2025-08-11 16:51:00",
+        "trial_end_date": 0,
+        "next_payment_date": 0,
+        "end_date": "2025-09-11 16:52:02",
+        "customer": {
+          "id": 3876,
+          "email": "ramdanda05@gmail.com",
+          "first_name": "Ram",
+          "last_name": "Dandamudi"
+        },
+        "parent_order_id": 201749,
+        "payment_method": "stripe",
+        "items": [
+          {
+            "product_id": 198787,
+            "name": "Eagle Premium Monthly",
+            "quantity": 1,
+            "total": "67",
+            "sku": ""
+          }
+        ]
+      },
+      {
+        "id": 201740,
+        "status": "cancelled",
+        "billing_period": "month",
+        "billing_interval": "1",
+        "total": "67.00",
+        "currency": "USD",
+        "start_date": "2025-08-05 14:46:45",
+        "trial_end_date": 0,
+        "next_payment_date": 0,
+        "end_date": "2025-09-05 15:04:34",
+        "customer": {
+          "id": 3364,
+          "email": "austinchristophel@gmail.com",
+          "first_name": "Austin",
+          "last_name": "Christophel"
+        },
+        "parent_order_id": 201739,
+        "payment_method": "stripe",
+        "items": [
+          {
+            "product_id": 198787,
+            "name": "Eagle Premium Monthly",
+            "quantity": 1,
+            "total": "67",
+            "sku": ""
+          }
+        ]
+      },
+      {
+        "id": 201737,
+        "status": "active",
+        "billing_period": "year",
+        "billing_interval": "1",
+        "total": "670.00",
+        "currency": "USD",
+        "start_date": "2025-08-04 21:37:13",
+        "trial_end_date": 0,
+        "next_payment_date": "2026-08-04 21:37:13",
+        "end_date": 0,
+        "customer": {
+          "id": 3875,
+          "email": "megazero93@gmail.com",
+          "first_name": "Gary",
+          "last_name": "Chang"
+        },
+        "parent_order_id": 201736,
+        "payment_method": "stripe",
+        "items": [
+          {
+            "product_id": 198788,
+            "name": "Eagle Premium Annual",
+            "quantity": 1,
+            "total": "670",
+            "sku": ""
+          }
+        ]
+      },
+      {
+        "id": 201733,
+        "status": "active",
+        "billing_period": "month",
+        "billing_interval": "1",
+        "total": "67.00",
+        "currency": "USD",
+        "start_date": "2025-08-04 19:35:05",
+        "trial_end_date": 0,
+        "next_payment_date": "2025-11-04 19:47:27",
+        "end_date": 0,
+        "customer": {
+          "id": 3874,
+          "email": "aalhamdani2010@gmail.com",
+          "first_name": "Ahmed",
+          "last_name": "Alhamdani"
+        },
+        "parent_order_id": 201732,
+        "payment_method": "stripe",
+        "items": [
+          {
+            "product_id": 198787,
+            "name": "Eagle Premium Monthly",
+            "quantity": 1,
+            "total": "67",
+            "sku": ""
+          }
+        ]
+      },
+      {
+        "id": 201709,
+        "status": "active",
+        "billing_period": "month",
+        "billing_interval": "1",
+        "total": "67.00",
+        "currency": "USD",
+        "start_date": "2025-07-31 18:49:16",
+        "trial_end_date": 0,
+        "next_payment_date": "2025-11-30 19:02:35",
+        "end_date": 0,
+        "customer": {
+          "id": 3873,
+          "email": "vdhupar2001@gmail.com",
+          "first_name": "Varinder",
+          "last_name": "K Dhupar"
+        },
+        "parent_order_id": 201708,
+        "payment_method": "stripe",
+        "items": [
+          {
+            "product_id": 198787,
+            "name": "Eagle Premium Monthly",
+            "quantity": 1,
+            "total": "67",
+            "sku": ""
+          }
+        ]
+      },
+      {
+        "id": 201700,
+        "status": "cancelled",
+        "billing_period": "month",
+        "billing_interval": "1",
+        "total": "67.00",
+        "currency": "USD",
+        "start_date": "2025-07-24 20:06:49",
+        "trial_end_date": 0,
+        "next_payment_date": 0,
+        "end_date": "2025-10-24 20:29:41",
+        "customer": {
+          "id": 3872,
+          "email": "fiddletin55@gmail.com",
+          "first_name": "Mark",
+          "last_name": " Boutros "
+        },
+        "parent_order_id": 201699,
+        "payment_method": "stripe",
+        "items": [
+          {
+            "product_id": 198787,
+            "name": "Eagle Premium Monthly",
+            "quantity": 1,
+            "total": "67",
+            "sku": ""
+          }
+        ]
+      },
+      {
+        "id": 201687,
+        "status": "cancelled",
+        "billing_period": "month",
+        "billing_interval": "1",
+        "total": "67.00",
+        "currency": "USD",
+        "start_date": "2025-07-21 08:38:32",
+        "trial_end_date": 0,
+        "next_payment_date": 0,
+        "end_date": "2025-08-21 08:46:20",
+        "customer": {
+          "id": 3870,
+          "email": "jzn596@gmail.com",
+          "first_name": "",
+          "last_name": ""
+        },
+        "parent_order_id": 201686,
+        "payment_method": "stripe",
+        "items": [
+          {
+            "product_id": 198787,
+            "name": "Eagle Premium Monthly",
+            "quantity": 1,
+            "total": "67",
+            "sku": ""
+          }
+        ]
+      },
+      {
+        "id": 201673,
+        "status": "active",
+        "billing_period": "year",
+        "billing_interval": "1",
+        "total": "670.00",
+        "currency": "USD",
+        "start_date": "2025-07-10 13:20:35",
+        "trial_end_date": 0,
+        "next_payment_date": "2026-07-10 13:20:35",
+        "end_date": 0,
+        "customer": {
+          "id": 3867,
+          "email": "Sahasmanoj@gmail.com",
+          "first_name": "",
+          "last_name": ""
+        },
+        "parent_order_id": 201672,
+        "payment_method": "ppcp",
+        "items": [
+          {
+            "product_id": 198788,
+            "name": "Eagle Premium Annual",
+            "quantity": 1,
+            "total": "670",
+            "sku": ""
+          }
+        ]
+      },
+      {
+        "id": 201664,
+        "status": "cancelled",
+        "billing_period": "month",
+        "billing_interval": "1",
+        "total": "67.00",
+        "currency": "USD",
+        "start_date": "2025-07-06 17:54:53",
+        "trial_end_date": 0,
+        "next_payment_date": 0,
+        "end_date": "2025-08-06 17:56:23",
+        "customer": {
+          "id": 3866,
+          "email": "shawnoche@gmail.com",
+          "first_name": "",
+          "last_name": ""
+        },
+        "parent_order_id": 201663,
+        "payment_method": "stripe",
+        "items": [
+          {
+            "product_id": 198787,
+            "name": "Eagle Premium Monthly",
+            "quantity": 1,
+            "total": "67",
+            "sku": ""
+          }
+        ]
+      },
+      {
+        "id": 201648,
+        "status": "active",
+        "billing_period": "year",
+        "billing_interval": "1",
+        "total": "670.00",
+        "currency": "USD",
+        "start_date": "2025-06-30 15:38:26",
+        "trial_end_date": 0,
+        "next_payment_date": "2026-06-30 15:38:26",
+        "end_date": 0,
+        "customer": {
+          "id": 3015,
+          "email": "garystanberry@gmail.com",
+          "first_name": "",
+          "last_name": ""
+        },
+        "parent_order_id": 201642,
+        "payment_method": "ppcp",
+        "items": [
+          {
+            "product_id": 198788,
+            "name": "Eagle Premium Annual",
+            "quantity": 1,
+            "total": "670",
+            "sku": ""
+          }
+        ]
+      },
+      {
+        "id": 201639,
+        "status": "cancelled",
+        "billing_period": "month",
+        "billing_interval": "1",
+        "total": "67.00",
+        "currency": "USD",
+        "start_date": "2025-06-28 09:37:49",
+        "trial_end_date": 0,
+        "next_payment_date": 0,
+        "end_date": "2025-08-28 09:54:59",
+        "customer": {
+          "id": 3865,
+          "email": "vknalla5@gmail.com",
+          "first_name": "",
+          "last_name": ""
+        },
+        "parent_order_id": 201638,
+        "payment_method": "stripe",
+        "items": [
+          {
+            "product_id": 198787,
+            "name": "Eagle Premium Monthly",
+            "quantity": 1,
+            "total": "67",
+            "sku": ""
+          }
+        ]
+      },
+      {
+        "id": 201636,
+        "status": "cancelled",
+        "billing_period": "month",
+        "billing_interval": "1",
+        "total": "67.00",
+        "currency": "USD",
+        "start_date": "2025-06-27 18:38:35",
+        "trial_end_date": 0,
+        "next_payment_date": 0,
+        "end_date": "2025-08-27 18:43:55",
+        "customer": {
+          "id": 3857,
+          "email": "revathi.srirangam93@gmail.com",
+          "first_name": "",
+          "last_name": ""
+        },
+        "parent_order_id": 201635,
+        "payment_method": "ppcp",
+        "items": [
+          {
+            "product_id": 198787,
+            "name": "Eagle Premium Monthly",
+            "quantity": 1,
+            "total": "67",
+            "sku": ""
+          }
+        ]
+      },
+      {
+        "id": 201633,
+        "status": "cancelled",
+        "billing_period": "month",
+        "billing_interval": "1",
+        "total": "67.00",
+        "currency": "USD",
+        "start_date": "2025-06-25 20:01:25",
+        "trial_end_date": 0,
+        "next_payment_date": 0,
+        "end_date": "2025-07-25 20:10:51",
+        "customer": {
+          "id": 3622,
+          "email": "deviprasad.anala@gmail.com",
+          "first_name": "",
+          "last_name": ""
+        },
+        "parent_order_id": 201632,
+        "payment_method": "stripe",
+        "items": [
+          {
+            "product_id": 198787,
+            "name": "Eagle Premium Monthly",
+            "quantity": 1,
+            "total": "67",
+            "sku": ""
+          }
+        ]
+      },
+      {
+        "id": 201630,
+        "status": "on-hold",
+        "billing_period": "month",
+        "billing_interval": "1",
+        "total": "67.00",
+        "currency": "USD",
+        "start_date": "2025-06-25 15:49:09",
+        "trial_end_date": 0,
+        "next_payment_date": "2025-07-25 15:49:09",
+        "end_date": 0,
+        "customer": {
+          "id": 3864,
+          "email": "jiazhunan@live.com.sg",
+          "first_name": "",
+          "last_name": ""
+        },
+        "parent_order_id": 201629,
+        "payment_method": "stripe",
+        "items": [
+          {
+            "product_id": 198787,
+            "name": "Eagle Premium Monthly",
+            "quantity": 1,
+            "total": "67",
+            "sku": ""
+          }
+        ]
+      },
+      {
+        "id": 201610,
+        "status": "active",
+        "billing_period": "month",
+        "billing_interval": "1",
+        "total": "67.00",
+        "currency": "USD",
+        "start_date": "2025-06-13 02:56:09",
+        "trial_end_date": 0,
+        "next_payment_date": "2025-11-13 04:01:18",
+        "end_date": 0,
+        "customer": {
+          "id": 3863,
+          "email": "jeffreaux@gmail.com",
+          "first_name": "",
+          "last_name": ""
+        },
+        "parent_order_id": 201609,
+        "payment_method": "stripe",
+        "items": [
+          {
+            "product_id": 198787,
+            "name": "Eagle Premium Monthly",
+            "quantity": 1,
+            "total": "67",
+            "sku": ""
+          }
+        ]
+      },
+      {
+        "id": 201582,
+        "status": "on-hold",
+        "billing_period": "month",
+        "billing_interval": "1",
+        "total": "67.00",
+        "currency": "USD",
+        "start_date": "2025-06-01 10:14:41",
+        "trial_end_date": 0,
+        "next_payment_date": "2025-08-01 10:20:56",
+        "end_date": 0,
+        "customer": {
+          "id": 3860,
+          "email": "egold24@proton.me",
+          "first_name": "",
+          "last_name": ""
+        },
+        "parent_order_id": 201580,
+        "payment_method": "ppcp",
+        "items": [
+          {
+            "product_id": 198787,
+            "name": "Eagle Premium Monthly",
+            "quantity": 1,
+            "total": "67",
+            "sku": ""
+          }
+        ]
+      },
+      {
+        "id": 201574,
+        "status": "active",
+        "billing_period": "year",
+        "billing_interval": "1",
+        "total": "670.00",
+        "currency": "USD",
+        "start_date": "2025-05-31 01:52:46",
+        "trial_end_date": 0,
+        "next_payment_date": "2026-05-31 01:52:46",
+        "end_date": 0,
+        "customer": {
+          "id": 3860,
+          "email": "egold24@proton.me",
+          "first_name": "",
+          "last_name": ""
+        },
+        "parent_order_id": 201573,
+        "payment_method": "ppcp",
+        "items": [
+          {
+            "product_id": 198788,
+            "name": "Eagle Premium Annual",
+            "quantity": 1,
+            "total": "670",
+            "sku": ""
+          }
+        ]
+      },
+      {
+        "id": 201572,
+        "status": "cancelled",
+        "billing_period": "month",
+        "billing_interval": "1",
+        "total": "67.00",
+        "currency": "USD",
+        "start_date": "2025-05-30 15:39:02",
+        "trial_end_date": 0,
+        "next_payment_date": 0,
+        "end_date": "2025-07-31 16:05:29",
+        "customer": {
+          "id": 3859,
+          "email": "srinivas.geddada17@gmail.com",
+          "first_name": "",
+          "last_name": ""
+        },
+        "parent_order_id": 201571,
+        "payment_method": "stripe",
+        "items": [
+          {
+            "product_id": 198787,
+            "name": "Eagle Premium Monthly",
+            "quantity": 1,
+            "total": "67",
+            "sku": ""
+          }
+        ]
+      },
+      {
+        "id": 201567,
+        "status": "on-hold",
+        "billing_period": "month",
+        "billing_interval": "1",
+        "total": "67.00",
+        "currency": "USD",
+        "start_date": "2025-05-27 20:28:52",
+        "trial_end_date": 0,
+        "next_payment_date": "2025-06-27 20:28:52",
+        "end_date": 0,
+        "customer": {
+          "id": 3858,
+          "email": "jeevitha.aws@gmail.com",
+          "first_name": "",
+          "last_name": ""
+        },
+        "parent_order_id": 201566,
+        "payment_method": "stripe",
+        "items": [
+          {
+            "product_id": 198787,
+            "name": "Eagle Premium Monthly",
+            "quantity": 1,
+            "total": "67",
+            "sku": ""
+          }
+        ]
+      },
+      {
+        "id": 201565,
+        "status": "cancelled",
+        "billing_period": "month",
+        "billing_interval": "1",
+        "total": "67.00",
+        "currency": "USD",
+        "start_date": "2025-05-27 16:27:46",
+        "trial_end_date": 0,
+        "next_payment_date": 0,
+        "end_date": "2025-06-27 16:29:42",
+        "customer": {
+          "id": 3857,
+          "email": "revathi.srirangam93@gmail.com",
+          "first_name": "",
+          "last_name": ""
+        },
+        "parent_order_id": 201564,
+        "payment_method": "ppcp",
+        "items": [
+          {
+            "product_id": 198787,
+            "name": "Eagle Premium Monthly",
+            "quantity": 1,
+            "total": "67",
+            "sku": ""
+          }
+        ]
+      },
+      {
+        "id": 201562,
+        "status": "cancelled",
+        "billing_period": "month",
+        "billing_interval": "1",
+        "total": "67.00",
+        "currency": "USD",
+        "start_date": "2025-05-27 07:26:35",
+        "trial_end_date": 0,
+        "next_payment_date": 0,
+        "end_date": "2025-05-30 13:21:02",
+        "customer": {
+          "id": 296,
+          "email": "denmark.javier@yahoo.com",
+          "first_name": "",
+          "last_name": ""
+        },
+        "parent_order_id": 201561,
+        "payment_method": "stripe",
+        "items": [
+          {
+            "product_id": 198787,
+            "name": "Eagle Premium Monthly",
+            "quantity": 1,
+            "total": "67",
+            "sku": ""
+          }
+        ]
+      },
+      {
+        "id": 201556,
+        "status": "cancelled",
+        "billing_period": "month",
+        "billing_interval": "1",
+        "total": "67.00",
+        "currency": "USD",
+        "start_date": "2025-05-24 04:49:34",
+        "trial_end_date": 0,
+        "next_payment_date": 0,
+        "end_date": "2025-07-24 05:03:34",
+        "customer": {
+          "id": 3854,
+          "email": "arnavrajchopra@gmail.com",
+          "first_name": "",
+          "last_name": ""
+        },
+        "parent_order_id": 201555,
+        "payment_method": "ppcp",
+        "items": [
+          {
+            "product_id": 198787,
+            "name": "Eagle Premium Monthly",
+            "quantity": 1,
+            "total": "67",
+            "sku": ""
+          }
+        ]
+      },
+      {
+        "id": 201553,
+        "status": "cancelled",
+        "billing_period": "month",
+        "billing_interval": "1",
+        "total": "67.00",
+        "currency": "USD",
+        "start_date": "2025-05-23 13:12:54",
+        "trial_end_date": 0,
+        "next_payment_date": 0,
+        "end_date": "2025-10-23 14:05:30",
+        "customer": {
+          "id": 3767,
+          "email": "kishor.342@gmail.com",
+          "first_name": "",
+          "last_name": ""
+        },
+        "parent_order_id": 201552,
+        "payment_method": "stripe",
+        "items": [
+          {
+            "product_id": 198787,
+            "name": "Eagle Premium Monthly",
+            "quantity": 1,
+            "total": "67",
+            "sku": ""
+          }
+        ]
+      },
+      {
+        "id": 201542,
+        "status": "active",
+        "billing_period": "year",
+        "billing_interval": "1",
+        "total": "670.00",
+        "currency": "USD",
+        "start_date": "2025-05-19 20:50:55",
+        "trial_end_date": 0,
+        "next_payment_date": "2026-05-19 20:50:55",
+        "end_date": 0,
+        "customer": {
+          "id": 3853,
+          "email": "atwozsolutions.llc@gmail.com",
+          "first_name": "",
+          "last_name": ""
+        },
+        "parent_order_id": 201541,
+        "payment_method": "stripe",
+        "items": [
+          {
+            "product_id": 198788,
+            "name": "Eagle Premium Annual",
+            "quantity": 1,
+            "total": "670",
+            "sku": ""
+          }
+        ]
+      },
+      {
+        "id": 201539,
+        "status": "cancelled",
+        "billing_period": "month",
+        "billing_interval": "1",
+        "total": "134.00",
+        "currency": "USD",
+        "start_date": "2025-05-19 19:39:27",
+        "trial_end_date": 0,
+        "next_payment_date": 0,
+        "end_date": "2025-06-25 01:14:08",
+        "customer": {
+          "id": 3852,
+          "email": "bobbilinaveen@gmail.com",
+          "first_name": "",
+          "last_name": ""
+        },
+        "parent_order_id": 201538,
+        "payment_method": "stripe",
+        "items": [
+          {
+            "product_id": 198787,
+            "name": "Eagle Premium Monthly",
+            "quantity": 2,
+            "total": "134",
+            "sku": ""
+          }
+        ]
+      },
+      {
+        "id": 201527,
+        "status": "cancelled",
+        "billing_period": "month",
+        "billing_interval": "1",
+        "total": "67.00",
+        "currency": "USD",
+        "start_date": "2025-05-11 07:23:31",
+        "trial_end_date": 0,
+        "next_payment_date": 0,
+        "end_date": "2025-07-11 07:43:25",
+        "customer": {
+          "id": 3851,
+          "email": "rsurendrareddy@gmail.com",
+          "first_name": "",
+          "last_name": ""
+        },
+        "parent_order_id": 201526,
+        "payment_method": "ppcp",
+        "items": [
+          {
+            "product_id": 198787,
+            "name": "Eagle Premium Monthly",
+            "quantity": 1,
+            "total": "67",
+            "sku": ""
+          }
+        ]
+      },
+      {
+        "id": 201517,
+        "status": "pending-cancel",
+        "billing_period": "month",
+        "billing_interval": "1",
+        "total": "67.00",
+        "currency": "USD",
+        "start_date": "2025-05-07 17:34:05",
+        "trial_end_date": 0,
+        "next_payment_date": 0,
+        "end_date": "2025-11-07 18:38:49",
+        "customer": {
+          "id": 187,
+          "email": "lalitpaul23@gmail.com",
+          "first_name": "",
+          "last_name": ""
+        },
+        "parent_order_id": 201516,
+        "payment_method": "stripe",
+        "items": [
+          {
+            "product_id": 198787,
+            "name": "Eagle Premium Monthly",
+            "quantity": 1,
+            "total": "67",
+            "sku": ""
+          }
+        ]
+      },
+      {
+        "id": 201494,
+        "status": "cancelled",
+        "billing_period": "month",
+        "billing_interval": "1",
+        "total": "67.00",
+        "currency": "USD",
+        "start_date": "2025-04-27 18:53:14",
+        "trial_end_date": 0,
+        "next_payment_date": 0,
+        "end_date": "2025-05-27 19:00:19",
+        "customer": {
+          "id": 3848,
+          "email": "thivarath31@gmail.com",
+          "first_name": "",
+          "last_name": ""
+        },
+        "parent_order_id": 201493,
+        "payment_method": "stripe",
+        "items": [
+          {
+            "product_id": 198787,
+            "name": "Eagle Premium Monthly",
+            "quantity": 1,
+            "total": "67",
+            "sku": ""
+          }
+        ]
+      },
+      {
+        "id": 201482,
+        "status": "cancelled",
+        "billing_period": "month",
+        "billing_interval": "1",
+        "total": "67.00",
+        "currency": "USD",
+        "start_date": "2025-04-21 22:09:10",
+        "trial_end_date": 0,
+        "next_payment_date": 0,
+        "end_date": "2025-05-21 22:13:31",
+        "customer": {
+          "id": 3845,
+          "email": "devino1679@gmail.com",
+          "first_name": "",
+          "last_name": ""
+        },
+        "parent_order_id": 201481,
+        "payment_method": "stripe",
+        "items": [
+          {
+            "product_id": 198787,
+            "name": "Eagle Premium Monthly",
+            "quantity": 1,
+            "total": "67",
+            "sku": ""
+          }
+        ]
+      },
+      {
+        "id": 201479,
+        "status": "active",
+        "billing_period": "year",
+        "billing_interval": "1",
+        "total": "670.00",
+        "currency": "USD",
+        "start_date": "2025-04-21 17:39:52",
+        "trial_end_date": 0,
+        "next_payment_date": "2026-04-21 17:39:52",
+        "end_date": 0,
+        "customer": {
+          "id": 2161,
+          "email": "krishnakishore.srikonda@gmail.com",
+          "first_name": "krishna",
+          "last_name": "srikonda"
+        },
+        "parent_order_id": 201478,
+        "payment_method": "ppcp",
+        "items": [
+          {
+            "product_id": 198788,
+            "name": "Eagle Premium Annual",
+            "quantity": 1,
+            "total": "670",
+            "sku": ""
+          }
+        ]
+      },
+      {
+        "id": 201477,
+        "status": "cancelled",
+        "billing_period": "month",
+        "billing_interval": "1",
+        "total": "67.00",
+        "currency": "USD",
+        "start_date": "2025-04-21 14:33:45",
+        "trial_end_date": 0,
+        "next_payment_date": 0,
+        "end_date": "2025-09-21 15:09:31",
+        "customer": {
+          "id": 3844,
+          "email": "tommyshropshire0@gmail.com",
+          "first_name": "",
+          "last_name": ""
+        },
+        "parent_order_id": 201476,
+        "payment_method": "stripe",
+        "items": [
+          {
+            "product_id": 198787,
+            "name": "Eagle Premium Monthly",
+            "quantity": 1,
+            "total": "67",
+            "sku": ""
+          }
+        ]
+      },
+      {
+        "id": 201473,
+        "status": "cancelled",
+        "billing_period": "month",
+        "billing_interval": "1",
+        "total": "67.00",
+        "currency": "USD",
+        "start_date": "2025-04-21 00:12:57",
+        "trial_end_date": 0,
+        "next_payment_date": 0,
+        "end_date": "2025-05-21 00:23:35",
+        "customer": {
+          "id": 1534,
+          "email": "bas.2008bas@gmail.com",
+          "first_name": "",
+          "last_name": ""
+        },
+        "parent_order_id": 201472,
+        "payment_method": "stripe",
+        "items": [
+          {
+            "product_id": 198787,
+            "name": "Eagle Premium Monthly",
+            "quantity": 1,
+            "total": "67",
+            "sku": ""
+          }
+        ]
+      },
+      {
+        "id": 201450,
+        "status": "cancelled",
+        "billing_period": "month",
+        "billing_interval": "1",
+        "total": "67.00",
+        "currency": "USD",
+        "start_date": "2025-04-08 02:01:09",
+        "trial_end_date": 0,
+        "next_payment_date": 0,
+        "end_date": "2025-05-08 13:06:05",
+        "customer": {
+          "id": 3690,
+          "email": "avinash016@gmail.com",
+          "first_name": "",
+          "last_name": ""
+        },
+        "parent_order_id": 201449,
+        "payment_method": "ppcp",
+        "items": [
+          {
+            "product_id": 198787,
+            "name": "Eagle Premium Monthly",
+            "quantity": 1,
+            "total": "67",
+            "sku": ""
+          }
+        ]
+      },
+      {
+        "id": 201443,
+        "status": "cancelled",
+        "billing_period": "month",
+        "billing_interval": "1",
+        "total": "67.00",
+        "currency": "USD",
+        "start_date": "2025-04-05 16:30:13",
+        "trial_end_date": 0,
+        "next_payment_date": 0,
+        "end_date": "2025-05-05 16:35:47",
+        "customer": {
+          "id": 3671,
+          "email": "tano4@hotmail.com",
+          "first_name": "",
+          "last_name": ""
+        },
+        "parent_order_id": 201442,
+        "payment_method": "stripe",
+        "items": [
+          {
+            "product_id": 198787,
+            "name": "Eagle Premium Monthly",
+            "quantity": 1,
+            "total": "67",
+            "sku": ""
+          }
+        ]
+      },
+      {
+        "id": 201438,
+        "status": "cancelled",
+        "billing_period": "month",
+        "billing_interval": "1",
+        "total": "67.00",
+        "currency": "USD",
+        "start_date": "2025-04-04 16:32:42",
+        "trial_end_date": 0,
+        "next_payment_date": 0,
+        "end_date": "2025-08-04 17:17:35",
+        "customer": {
+          "id": 3840,
+          "email": "kushaal730@gmail.com",
+          "first_name": "",
+          "last_name": ""
+        },
+        "parent_order_id": 201437,
+        "payment_method": "stripe",
+        "items": [
+          {
+            "product_id": 198787,
+            "name": "Eagle Premium Monthly",
+            "quantity": 1,
+            "total": "67",
+            "sku": ""
+          }
+        ]
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "per_page": 50,
+      "total": 10,
+      "total_pages": 1
+    },
+    "summary": {
+      "total_subscriptions": 10,
+      "active_subscriptions": 10,
+      "monthly_recurring_revenue": 625.33000000000004,
+      "subscription_products": 3
+    }
+  }
+}

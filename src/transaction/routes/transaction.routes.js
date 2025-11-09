@@ -3,6 +3,7 @@ const router = express.Router();
 const transactionController = require('../controllers/transaction.controller');
 const { protect } = require('../../middlewares/auth.middleware');
 const rbacMiddleware = require('../../admin/middlewares/rbac.middleware');
+const taxRoutes = require('./tax.routes');
 
 // ========================================
 // USER ROUTES - Authenticated users
@@ -98,5 +99,10 @@ router.post('/admin/:id/dispute', transactionController.addDispute);
  * @access  Private/Admin
  */
 router.patch('/admin/:id/payout', transactionController.updatePayoutStatus);
+
+// ========================================
+// TAX ROUTES - Tax calculation and reporting
+// ========================================
+router.use('/tax', taxRoutes);
 
 module.exports = router;

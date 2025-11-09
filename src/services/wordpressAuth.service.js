@@ -174,15 +174,15 @@ class WordPressAuthService {
                 firstName: wpUser.display_name?.split(' ')[0] || 'User',
                 lastName: wpUser.display_name?.split(' ').slice(1).join(' ') || '',
                 name: wpUser.display_name || wpUser.username,
+                username: wpUser.username,
                 email: wpUser.email,
                 wordpressId: wpUser.id,
-                wordpressUsername: wpUser.username, // Store WordPress username
-                wordpressRoles: wpUser.roles || ['subscriber'], // Store all WP roles
                 isWordPressUser: true,
                 lastSyncedAt: new Date(),
                 isEmailVerified: true,
                 isActive: true,
-                role: this.mapWordPressRole(wpUser.roles?.[0] || 'subscriber')
+                role: this.mapWordPressRole(wpUser.roles?.[0] || 'subscriber'),
+                source: 'wordpress'
             };
 
             if (localUser) {
@@ -210,14 +210,12 @@ class WordPressAuthService {
                     ...userData,
                     password: password || `WP_TEMP_${wpUser.id}_${Date.now()}`,
                     subscription: 'None',
-                    lastActivityAt: new Date()
+                    subscriptionStatus: 'none',
+                    lastLoginAt: new Date()
                 });
 
                 console.log(`✅ User created: ${wpUser.email}`);
             }
-
-            // Update activity timestamp after successful sync
-            await localUser.updateActivity();
 
             return localUser;
 

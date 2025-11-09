@@ -1,4 +1,5 @@
 const SystemSettings = require('../models/systemSettings.model');
+const systemSettingsService = require('../services/systemSettings.service');
 const User = require('../../user/models/user.model');
 const { SignedContract } = require('../../contract/models/contract.model');
 const Transaction = require('../../transaction/models/transaction.model');
@@ -11,87 +12,24 @@ const Subscription = require('../../subscription/models/subscription.model');
  */
 exports.getSystemSettings = async (req, res) => {
     try {
-        let settings = await SystemSettings.findOne();
+        // Determine if user is admin
+        const isAdmin = req.user && (req.user.role === 'admin' || req.user.role === 'superAdmin');
 
-        // If no settings exist, create default settings
-        if (!settings) {
-            settings = await SystemSettings.create({
-                maintenanceMode: {
-                    enabled: false,
-                    message: 'The system is currently under maintenance. Please check back soon.'
-                },
-                registrationOpen: true,
-                defaultUserRole: 'user',
-                systemName: 'Eagle Investors',
-                systemLogo: '',
-                contactEmail: 'support@eagle-investors.com',
-                supportUrl: 'https://eagle-investors.com/support',
-                featureFlags: [],
-                legalTexts: [],
-                policyUrls: [],
-                apiRateLimits: {
-                    authenticated: { requestsPerMinute: 100 },
-                    unauthenticated: { requestsPerMinute: 20 }
-                },
-                emailSettings: {
-                    fromName: 'Eagle Investors',
-                    fromEmail: 'noreply@eagle-investors.com',
-                    replyToEmail: 'support@eagle-investors.com'
-                },
-                smsSettings: {
-                    enabled: false,
-                    provider: 'twilio'
-                },
-                socialLogin: {
-                    google: { enabled: false },
-                    facebook: { enabled: false },
-                    apple: { enabled: false }
-                },
-                securitySettings: {
-                    passwordMinLength: 8,
-                    passwordRequireUppercase: true,
-                    passwordRequireLowercase: true,
-                    passwordRequireNumber: true,
-                    passwordRequireSpecialChar: true,
-                    sessionTimeout: 3600,
-                    maxLoginAttempts: 5,
-                    lockoutDuration: 900,
-                    twoFactorRequired: false
-                }
+        if (isAdmin) {
+            // Return all settings for admin
+            const settings = await systemSettingsService.getSettings(true);
+            return res.status(200).json({
+                success: true,
+                data: settings
             });
-        }
-
-        // For non-admin users, hide sensitive information
-        const isAdmin = req.user && req.user.role === 'admin';
-
-        if (!isAdmin) {
-            // Return only public settings
-            const publicSettings = {
-                maintenanceMode: settings.maintenanceMode,
-                registrationOpen: settings.registrationOpen,
-                systemName: settings.systemName,
-                systemLogo: settings.systemLogo,
-                contactEmail: settings.contactEmail,
-                supportUrl: settings.supportUrl,
-                policyUrls: settings.policyUrls.filter(p => p.isActive),
-                socialLogin: {
-                    google: { enabled: settings.socialLogin.google.enabled },
-                    facebook: { enabled: settings.socialLogin.facebook.enabled },
-                    apple: { enabled: settings.socialLogin.apple.enabled }
-                }
-            };
-
+        } else {
+            // Return only public settings for non-admin users
+            const publicSettings = await systemSettingsService.getPublicSettings();
             return res.status(200).json({
                 success: true,
                 data: publicSettings
             });
         }
-
-        // Return all settings for admin
-        res.status(200).json({
-            success: true,
-            data: settings
-        });
     } catch (error) {
         console.error('❌ Get System Settings Error:', error);
         res.status(500).json({
@@ -109,17 +47,7 @@ exports.getSystemSettings = async (req, res) => {
  */
 exports.updateSystemSettings = async (req, res) => {
     try {
-        let settings = await SystemSettings.findOne();
-
-        if (!settings) {
-            settings = await SystemSettings.create(req.body);
-        } else {
-            settings = await SystemSettings.findByIdAndUpdate(
-                settings._id,
-                { $set: req.body },
-                { new: true, runValidators: true }
-            );
-        }
+        const settings = await systemSettingsService.updateSettings(req.body, req.user.id);
 
         res.status(200).json({
             success: true,
@@ -143,7 +71,7 @@ exports.updateSystemSettings = async (req, res) => {
  */
 exports.getFeatureFlags = async (req, res) => {
     try {
-        const settings = await SystemSettings.findOne();
+        const settings = await systemSettingsService.getSettings();
 
         if (!settings) {
             return res.status(200).json({
@@ -153,7 +81,7 @@ exports.getFeatureFlags = async (req, res) => {
         }
 
         // Filter enabled flags only for non-admin users
-        const isAdmin = req.user && req.user.role === 'admin';
+        const isAdmin = req.user && (req.user.role === 'admin' || req.user.role === 'superAdmin');
         const flags = isAdmin
             ? settings.featureFlags
             : settings.featureFlags.filter(f => f.enabled);
@@ -179,14 +107,7 @@ exports.getFeatureFlags = async (req, res) => {
  */
 exports.addFeatureFlag = async (req, res) => {
     try {
-        let settings = await SystemSettings.findOne();
-
-        if (!settings) {
-            settings = await SystemSettings.create({});
-        }
-
-        settings.addFeatureFlag(req.body);
-        await settings.save();
+        const settings = await systemSettingsService.updateFeatureFlag(req.body);
 
         res.status(201).json({
             success: true,
@@ -413,115 +334,11 @@ exports.addPolicyUrl = async (req, res) => {
  */
 exports.getSystemSettingsAnalytics = async (req, res) => {
     try {
-        const settings = await SystemSettings.findOne();
-
-        // Get statistics in parallel
-        const [
-            totalUsers,
-            activeUsers,
-            totalContracts,
-            completedContracts,
-            totalTransactions,
-            totalRevenue,
-            activeSubscriptions,
-        ] = await Promise.all([
-            User.countDocuments(),
-            User.countDocuments({ isActive: true }),
-            SignedContract.countDocuments(),
-            SignedContract.countDocuments({ status: 'fully_signed' }),
-            Transaction.countDocuments(),
-            Transaction.aggregate([
-                { $match: { status: 'completed' } },
-                { $group: { _id: null, total: { $sum: '$amounts.gross' } } }
-            ]),
-            Subscription.countDocuments({ status: 'active' }),
-        ]);
-
-        // Feature flags usage
-        const featureFlagsStats = settings?.featureFlags?.length
-            ? {
-                total: settings.featureFlags.length,
-                enabled: settings.featureFlags.filter(f => f.enabled).length,
-                disabled: settings.featureFlags.filter(f => !f.enabled).length,
-            }
-            : { total: 0, enabled: 0, disabled: 0 };
-
-        // Legal texts stats
-        const legalTextsStats = settings?.legalTexts?.length
-            ? {
-                total: settings.legalTexts.length,
-                active: settings.legalTexts.filter(t => t.isActive).length,
-                inactive: settings.legalTexts.filter(t => !t.isActive).length,
-                byType: settings.legalTexts.reduce((acc, text) => {
-                    acc[text.type] = (acc[text.type] || 0) + 1;
-                    return acc;
-                }, {}),
-            }
-            : { total: 0, active: 0, inactive: 0, byType: {} };
-
-        // Policy URLs stats
-        const policyUrlsStats = settings?.policyUrls?.length
-            ? {
-                total: settings.policyUrls.length,
-                active: settings.policyUrls.filter(p => p.isActive).length,
-                inactive: settings.policyUrls.filter(p => !p.isActive).length,
-            }
-            : { total: 0, active: 0, inactive: 0 };
-
-        // Get recent activity (last 24 hours)
-        const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-        const [recentUsers, recentContracts, recentTransactions] = await Promise.all([
-            User.countDocuments({ createdAt: { $gte: oneDayAgo } }),
-            SignedContract.countDocuments({ createdAt: { $gte: oneDayAgo } }),
-            Transaction.countDocuments({ 'timeline.initiatedAt': { $gte: oneDayAgo } }),
-        ]);
+        const analytics = await systemSettingsService.getSystemAnalytics();
 
         res.status(200).json({
             success: true,
-            data: {
-                systemInfo: {
-                    name: settings?.systemName || 'Eagle Investors',
-                    maintenanceMode: settings?.maintenanceMode?.enabled || false,
-                    registrationOpen: settings?.registrationOpen !== false,
-                    lastUpdated: settings?.updatedAt,
-                },
-                userStats: {
-                    total: totalUsers,
-                    active: activeUsers,
-                    inactive: totalUsers - activeUsers,
-                },
-                contractStats: {
-                    total: totalContracts,
-                    completed: completedContracts,
-                    pending: totalContracts - completedContracts,
-                },
-                transactionStats: {
-                    total: totalTransactions,
-                    totalRevenue: totalRevenue.length > 0 ? totalRevenue[0].total : 0,
-                },
-                subscriptionStats: {
-                    active: activeSubscriptions,
-                },
-                featureFlags: featureFlagsStats,
-                legalTexts: legalTextsStats,
-                policyUrls: policyUrlsStats,
-                recentActivity: {
-                    last24Hours: {
-                        newUsers: recentUsers,
-                        newContracts: recentContracts,
-                        newTransactions: recentTransactions,
-                    },
-                },
-                apiRateLimits: settings?.apiRateLimits || {
-                    authenticated: { requestsPerMinute: 100 },
-                    unauthenticated: { requestsPerMinute: 20 },
-                },
-                securitySettings: {
-                    twoFactorRequired: settings?.securitySettings?.twoFactorRequired || false,
-                    maxLoginAttempts: settings?.securitySettings?.maxLoginAttempts || 5,
-                    sessionTimeout: settings?.securitySettings?.sessionTimeout || 3600,
-                },
-            },
+            data: analytics
         });
     } catch (error) {
         console.error('❌ Get System Settings Analytics Error:', error);
@@ -529,6 +346,417 @@ exports.getSystemSettingsAnalytics = async (req, res) => {
             success: false,
             error: 'Failed to fetch system settings analytics',
             message: error.message,
+        });
+    }
+};
+
+/**
+ * Get Public Settings (No Auth Required)
+ * @route GET /api/system-settings/public
+ * @access Public
+ */
+exports.getPublicSettings = async (req, res) => {
+    try {
+        const publicSettings = await systemSettingsService.getPublicSettings();
+
+        res.status(200).json({
+            success: true,
+            data: publicSettings
+        });
+    } catch (error) {
+        console.error('❌ Get Public Settings Error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch public settings',
+            message: error.message
+        });
+    }
+};
+
+/**
+ * Check Feature Flag for Current User
+ * @route GET /api/system-settings/feature-flag/:key/check
+ * @access Public/User
+ */
+exports.checkFeatureFlag = async (req, res) => {
+    try {
+        const { key } = req.params;
+        const enabled = await systemSettingsService.isFeatureEnabled(key, req.user);
+
+        res.status(200).json({
+            success: true,
+            data: {
+                key,
+                enabled,
+                userId: req.user?.id,
+                userRole: req.user?.role
+            }
+        });
+    } catch (error) {
+        console.error('❌ Check Feature Flag Error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to check feature flag',
+            message: error.message
+        });
+    }
+};
+
+/**
+ * Update Legal Text
+ * @route PUT /api/system-settings/legal-texts/:id
+ * @access Admin
+ */
+exports.updateLegalText = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const settings = await SystemSettings.findOne();
+
+        if (!settings) {
+            return res.status(404).json({
+                success: false,
+                error: 'System settings not found'
+            });
+        }
+
+        const textIndex = settings.legalTexts.findIndex(t => t._id.toString() === id);
+
+        if (textIndex === -1) {
+            return res.status(404).json({
+                success: false,
+                error: 'Legal text not found'
+            });
+        }
+
+        // Update legal text
+        settings.legalTexts[textIndex] = {
+            ...settings.legalTexts[textIndex].toObject(),
+            ...req.body,
+            updatedBy: req.user._id,
+            updatedAt: new Date()
+        };
+
+        await settings.save();
+
+        res.status(200).json({
+            success: true,
+            data: settings.legalTexts[textIndex]
+        });
+    } catch (error) {
+        console.error('❌ Update Legal Text Error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to update legal text',
+            message: error.message
+        });
+    }
+};
+
+/**
+ * Approve Legal Text
+ * @route POST /api/system-settings/legal-texts/:id/approve
+ * @access Admin
+ */
+exports.approveLegalText = async (req, res) => {
+    try {
+        const { id } = req.params;
+        const settings = await SystemSettings.findOne();
+
+        if (!settings) {
+            return res.status(404).json({
+                success: false,
+                error: 'System settings not found'
+            });
+        }
+
+        const textIndex = settings.legalTexts.findIndex(t => t._id.toString() === id);
+
+        if (textIndex === -1) {
+            return res.status(404).json({
+                success: false,
+                error: 'Legal text not found'
+            });
+        }
+
+        settings.legalTexts[textIndex].approvalStatus = 'approved';
+        settings.legalTexts[textIndex].approvedBy = req.user._id;
+        settings.legalTexts[textIndex].approvedAt = new Date();
+        settings.legalTexts[textIndex].isActive = true;
+
+        await settings.save();
+
+        res.status(200).json({
+            success: true,
+            data: settings.legalTexts[textIndex]
+        });
+    } catch (error) {
+        console.error('❌ Approve Legal Text Error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to approve legal text',
+            message: error.message
+        });
+    }
+};
+
+/**
+ * Update Policy URL
+ * @route PUT /api/system-settings/policy-urls/:key
+ * @access Admin
+ */
+exports.updatePolicyUrl = async (req, res) => {
+    try {
+        const { key } = req.params;
+        const settings = await SystemSettings.findOne();
+
+        if (!settings) {
+            return res.status(404).json({
+                success: false,
+                error: 'System settings not found'
+            });
+        }
+
+        const urlIndex = settings.policyUrls.findIndex(p => p.key === key);
+
+        if (urlIndex === -1) {
+            // Create new policy URL if not exists
+            const newPolicyUrl = {
+                key: key,
+                ...req.body,
+                createdBy: req.user._id,
+                createdAt: new Date()
+            };
+            settings.policyUrls.push(newPolicyUrl);
+        } else {
+            // Update existing policy URL
+            settings.policyUrls[urlIndex] = {
+                ...settings.policyUrls[urlIndex].toObject(),
+                ...req.body,
+                key: key,
+                updatedBy: req.user._id,
+                updatedAt: new Date()
+            };
+        }
+
+        await settings.save();
+
+        const updatedUrl = urlIndex === -1
+            ? settings.policyUrls[settings.policyUrls.length - 1]
+            : settings.policyUrls[urlIndex];
+
+        res.status(200).json({
+            success: true,
+            data: updatedUrl
+        });
+    } catch (error) {
+        console.error('❌ Update Policy URL Error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to update policy URL',
+            message: error.message
+        });
+    }
+};
+
+/**
+ * Delete Policy URL
+ * @route DELETE /api/system-settings/policy-urls/:key
+ * @access Admin
+ */
+exports.deletePolicyUrl = async (req, res) => {
+    try {
+        const { key } = req.params;
+        const settings = await SystemSettings.findOne();
+
+        if (!settings) {
+            return res.status(404).json({
+                success: false,
+                error: 'System settings not found'
+            });
+        }
+
+        settings.policyUrls = settings.policyUrls.filter(p => p.key !== key);
+        await settings.save();
+
+        res.status(200).json({
+            success: true,
+            message: 'Policy URL deleted successfully'
+        });
+    } catch (error) {
+        console.error('❌ Delete Policy URL Error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to delete policy URL',
+            message: error.message
+        });
+    }
+};
+
+/**
+ * Get Configurations
+ * @route GET /api/system-settings/configurations
+ * @access Admin
+ */
+exports.getConfigurations = async (req, res) => {
+    try {
+        const settings = await SystemSettings.findOne();
+
+        if (!settings) {
+            return res.status(404).json({
+                success: false,
+                error: 'System settings not found'
+            });
+        }
+
+        // Return configurations array from settings
+        const configurations = settings.configurations || [];
+
+        res.status(200).json({
+            success: true,
+            data: configurations
+        });
+    } catch (error) {
+        console.error('❌ Get Configurations Error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to fetch configurations',
+            message: error.message
+        });
+    }
+};
+
+/**
+ * Update Configuration
+ * @route PUT /api/system-settings/configurations/:key
+ * @access Admin
+ */
+exports.updateConfiguration = async (req, res) => {
+    try {
+        const { key } = req.params;
+        const { value } = req.body;
+        const settings = await SystemSettings.findOne();
+
+        if (!settings) {
+            return res.status(404).json({
+                success: false,
+                error: 'System settings not found'
+            });
+        }
+
+        if (!settings.configurations) {
+            settings.configurations = [];
+        }
+
+        const configIndex = settings.configurations.findIndex(c => c.key === key);
+
+        if (configIndex === -1) {
+            return res.status(404).json({
+                success: false,
+                error: 'Configuration not found'
+            });
+        }
+
+        if (settings.configurations[configIndex].isReadOnly) {
+            return res.status(403).json({
+                success: false,
+                error: 'This configuration is read-only'
+            });
+        }
+
+        settings.configurations[configIndex].value = value;
+        settings.configurations[configIndex].lastModified = new Date();
+        settings.configurations[configIndex].modifiedBy = req.user._id;
+
+        await settings.save();
+
+        res.status(200).json({
+            success: true,
+            data: settings.configurations[configIndex]
+        });
+    } catch (error) {
+        console.error('❌ Update Configuration Error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to update configuration',
+            message: error.message
+        });
+    }
+};
+
+/**
+ * Toggle Maintenance Mode
+ * @route POST /api/system-settings/maintenance-mode
+ * @access Admin
+ */
+exports.toggleMaintenanceMode = async (req, res) => {
+    try {
+        const { enabled, message } = req.body;
+        const settings = await SystemSettings.findOne();
+
+        if (!settings) {
+            return res.status(404).json({
+                success: false,
+                error: 'System settings not found'
+            });
+        }
+
+        settings.maintenanceMode.enabled = enabled;
+        if (message) {
+            settings.maintenanceMode.message = message;
+        }
+
+        await settings.save();
+
+        res.status(200).json({
+            success: true,
+            data: {
+                maintenanceMode: settings.maintenanceMode.enabled,
+                maintenanceMessage: settings.maintenanceMode.message
+            }
+        });
+    } catch (error) {
+        console.error('❌ Toggle Maintenance Mode Error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to toggle maintenance mode',
+            message: error.message
+        });
+    }
+};
+
+/**
+ * Export Settings
+ * @route GET /api/system-settings/export
+ * @access Admin
+ */
+exports.exportSettings = async (req, res) => {
+    try {
+        const settings = await SystemSettings.findOne();
+
+        if (!settings) {
+            return res.status(404).json({
+                success: false,
+                error: 'System settings not found'
+            });
+        }
+
+        // Create backup object
+        const backup = {
+            exportDate: new Date().toISOString(),
+            version: '1.0',
+            settings: settings.toObject()
+        };
+
+        // Send as downloadable JSON
+        res.setHeader('Content-Type', 'application/json');
+        res.setHeader('Content-Disposition', `attachment; filename=system-settings-backup-${Date.now()}.json`);
+        res.status(200).send(JSON.stringify(backup, null, 2));
+    } catch (error) {
+        console.error('❌ Export Settings Error:', error);
+        res.status(500).json({
+            success: false,
+            error: 'Failed to export settings',
+            message: error.message
         });
     }
 };

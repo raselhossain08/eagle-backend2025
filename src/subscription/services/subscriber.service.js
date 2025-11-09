@@ -5,6 +5,7 @@ const Payment = require('../../payment/models/payment.model');
 const Discount = require('../../payment/models/discount.model');
 const MembershipPlan = require('../models/membershipPlan.model');
 const mongoose = require('mongoose');
+const paymentWebhookController = require('../../controllers/paymentWebhook.controller');
 
 // Optional models - load if available
 let SupportTicket, SignedContract;
@@ -408,6 +409,124 @@ class SubscriberService {
     });
 
     return timeline.sort((a, b) => new Date(b.date) - new Date(a.date));
+  }
+
+  /**
+   * Handle successful subscription payment and create transaction
+   */
+  async handleSubscriptionPaymentSuccess(paymentData, subscriptionId, userId) {
+    try {
+      console.log('🔄 Processing subscription payment success...', {
+        subscriptionId,
+        userId,
+        amount: paymentData.amount
+      });
+
+      // Get subscription and user data
+      const [subscription, userData] = await Promise.all([
+        Subscription.findById(subscriptionId),
+        User.findById(userId)
+      ]);
+
+      if (!subscription || !userData) {
+        throw new Error('Subscription or user not found');
+      }
+
+      // Create transaction record
+      const transactionResult = await paymentWebhookController.handleSubscriptionPayment(
+        paymentData,
+        subscription,
+        userData
+      );
+
+      // Update subscription status if needed
+      if (subscription.status !== 'active' && paymentData.status === 'succeeded') {
+        subscription.status = 'active';
+        subscription.lastPaymentDate = new Date();
+        subscription.nextBillingDate = this.calculateNextBillingDate(subscription);
+        await subscription.save();
+
+        console.log('✅ Subscription activated after successful payment');
+      }
+
+      return {
+        success: true,
+        transaction: transactionResult.transaction,
+        subscription
+      };
+
+    } catch (error) {
+      console.error('❌ Failed to handle subscription payment success:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Calculate next billing date based on billing cycle
+   */
+  calculateNextBillingDate(subscription) {
+    const currentDate = new Date();
+    const billingCycle = subscription.billingCycle || 'monthly';
+
+    switch (billingCycle) {
+      case 'weekly':
+        return new Date(currentDate.getTime() + (7 * 24 * 60 * 60 * 1000));
+      case 'monthly':
+        const nextMonth = new Date(currentDate);
+        nextMonth.setMonth(currentDate.getMonth() + 1);
+        return nextMonth;
+      case 'quarterly':
+        const nextQuarter = new Date(currentDate);
+        nextQuarter.setMonth(currentDate.getMonth() + 3);
+        return nextQuarter;
+      case 'yearly':
+        const nextYear = new Date(currentDate);
+        nextYear.setFullYear(currentDate.getFullYear() + 1);
+        return nextYear;
+      default:
+        return new Date(currentDate.getTime() + (30 * 24 * 60 * 60 * 1000)); // 30 days default
+    }
+  }
+
+  /**
+   * Handle failed subscription payment
+   */
+  async handleSubscriptionPaymentFailed(paymentData, subscriptionId, userId) {
+    try {
+      console.log('⚠️ Processing subscription payment failure...', {
+        subscriptionId,
+        userId,
+        failureReason: paymentData.failureReason
+      });
+
+      const subscription = await Subscription.findById(subscriptionId);
+      if (!subscription) {
+        throw new Error('Subscription not found');
+      }
+
+      // Update subscription with payment failure
+      subscription.paymentFailures = (subscription.paymentFailures || 0) + 1;
+      subscription.lastPaymentFailure = new Date();
+      subscription.failureReason = paymentData.failureReason;
+
+      // Set to past_due if too many failures
+      if (subscription.paymentFailures >= 3) {
+        subscription.status = 'past_due';
+        console.log('❌ Subscription marked as past_due due to multiple payment failures');
+      }
+
+      await subscription.save();
+
+      return {
+        success: true,
+        subscription,
+        failureCount: subscription.paymentFailures
+      };
+
+    } catch (error) {
+      console.error('❌ Failed to handle subscription payment failure:', error);
+      throw error;
+    }
   }
 
   _calculateAverageResolutionTime(tickets) {

@@ -50,11 +50,32 @@ const userSchema = new mongoose.Schema(
       },
       minlength: 6
     },
+    emailVerified: {
+      type: Boolean,
+      default: false
+    },
+    emailVerifiedAt: {
+      type: Date
+    },
 
     // User Roles & Types - Different from Admin roles
     role: {
       type: String,
-      enum: ["subscriber", "user", "premium_user", "vip_user"],
+      enum: [
+        "subscriber",
+        "user",
+        "customer",
+        "author",
+        "contributor",
+        "editor",
+        "administrator",
+        "shop_manager",
+        "group_leader",
+        "student",
+        "web_designer",
+        "seo_manager",
+        "seo_editor"
+      ],
       default: "subscriber",
     },
     userType: {
@@ -340,6 +361,74 @@ const userSchema = new mongoose.Schema(
       maxlength: 1000
     },
 
+    // Additional Subscription Management Fields
+    cancelledAt: {
+      type: Date
+    },
+    cancellationReason: {
+      type: String
+    },
+    suspendedAt: {
+      type: Date
+    },
+    suspensionReason: {
+      type: String
+    },
+    pausedAt: {
+      type: Date
+    },
+    pausedUntil: {
+      type: Date
+    },
+    pauseReason: {
+      type: String
+    },
+    lastPaymentAmount: {
+      type: Number,
+      default: 0
+    },
+    trialEndDate: {
+      type: Date
+    },
+    scheduledPlanChange: {
+      newPlanId: mongoose.Schema.Types.ObjectId,
+      newPlanName: String,
+      newBillingCycle: String,
+      effectiveDate: Date,
+      scheduledAt: Date
+    },
+    planChangeHistory: [{
+      fromPlan: String,
+      toPlan: String,
+      fromBillingCycle: String,
+      toBillingCycle: String,
+      changeDate: Date,
+      priceChange: Number
+    }],
+    isDeleted: {
+      type: Boolean,
+      default: false
+    },
+    deletedAt: {
+      type: Date
+    },
+
+    // WordPress Migration Fields
+    wpSubscriptionId: {
+      type: String,
+      index: true
+    },
+    wpParentOrderId: {
+      type: String
+    },
+    wpPaymentMethod: {
+      type: String
+    },
+    currency: {
+      type: String,
+      default: 'USD'
+    },
+
     // System Fields
     source: {
       type: String,
@@ -497,6 +586,40 @@ userSchema.methods.hasAccess = function (feature) {
 
   return roleAccess[this.role]?.includes(feature) || false;
 };
+
+// =====================================================
+// Database Indexes for Performance Optimization
+// =====================================================
+
+// 1. Subscription Status Index - For filtering subscriptions by status
+userSchema.index({ subscriptionStatus: 1 });
+
+// 2. Subscription End Date Index - For finding expiring subscriptions
+userSchema.index({ subscriptionEndDate: 1 });
+
+// 3. Next Billing Date Index - For processing upcoming renewals
+userSchema.index({ nextBillingDate: 1 });
+
+// 4. Subscription Plan Index - For queries by specific plan
+userSchema.index({ subscriptionPlanId: 1 });
+
+// 5. Email Index - Already unique, but ensuring explicit index
+userSchema.index({ email: 1 });
+
+// 6. Compound Index: Status + End Date - Most common query pattern
+userSchema.index({ subscriptionStatus: 1, subscriptionEndDate: 1 });
+
+// 7. Compound Index: Status + Next Billing - For renewal processing
+userSchema.index({ subscriptionStatus: 1, nextBillingDate: 1 });
+
+// 8. Compound Index: Plan + Status - For plan-specific analytics
+userSchema.index({ subscriptionPlanId: 1, subscriptionStatus: 1 });
+
+// 9. Compound Index: Status + Created Date - For recent subscriptions
+userSchema.index({ subscriptionStatus: 1, createdAt: -1 });
+
+// 10. Sparse Index: Trial End Date - Only for users in trial
+userSchema.index({ trialEndDate: 1 }, { sparse: true });
 
 // Static Methods
 userSchema.statics.findByEmailOrUsername = function (identifier) {

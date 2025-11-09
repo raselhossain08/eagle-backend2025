@@ -1,0 +1,47 @@
+{
+  "success": true,
+  "data": {
+    "site_info": {
+      "site_url": "http://my-testting.local",
+      "site_name": "eagle-investors.com",
+      "wordpress_version": "6.8.3",
+      "plugin_version": "1.2.0"
+    },
+    "user_analytics": {
+      "total_users": 4066,
+      "users_by_role": {
+        "administrator": 5,
+        "editor": 1,
+        "author": 1,
+        "contributor": 1,
+        "subscriber": 109,
+        "customer": 2984,
+        "shop_manager": 1,
+        "group_leader": 1,
+        "student": 817,
+        "css_js_designer": 1,
+        "wpseo_manager": 1,
+        "wpseo_editor": 1
+      },
+      "recent_registrations": 18
+    },
+    "content_analytics": {
+      "total_posts": "6",
+      "total_pages": "23",
+      "total_comments": 3529
+    },
+    "api_analytics": {
+      "endpoint_url": "http://my-testting.local/wp-json/api_master/v1",
+      "api_key_configured": true,
+      "last_sync": "Never"
+    },
+    "woocommerce_analytics": {
+      "orders_in_period": 0,
+      "total_products": 6,
+      "currency": "USD",
+      "store_enabled": true
+    }
+  },
+  "timeframe": "30d",
+  "generated_at": "2025-11-08 21:36:47"
+}
