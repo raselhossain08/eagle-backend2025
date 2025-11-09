@@ -133,7 +133,9 @@ const corsOptions = {
     // Check if origin contains allowed domains (simple string matching for reliability)
     const allowedDomains = [
       'eagleinvest.us',
-      'eagle-investors.com'
+      'eagle-investors.com',
+      'admin.eagleinvest.us',
+      'www.eagleinvest.us'
     ];
 
     const isAllowed = allowedDomains.some(domain => origin.includes(domain));
