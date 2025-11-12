@@ -1,5 +1,11 @@
 const express = require('express');
 const router = express.Router();
+/**
+ * @swagger
+ * tags:
+ *   - name: System Settings
+ *     description: System Settings API endpoints
+ */
 const {
     getSystemSettings,
     updateSystemSettings,

@@ -5,6 +5,12 @@
 
 const express = require('express');
 const router = express.Router();
+/**
+ * @swagger
+ * tags:
+ *   - name: Tax Integrations
+ *     description: Tax Integrations API endpoints
+ */
 const TaxController = require('../controllers/TaxController');
 const { protect } = require('../../middlewares/auth.middleware');
 

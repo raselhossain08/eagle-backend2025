@@ -10,14 +10,31 @@ const {
 
 const router = express.Router();
 
+/**
+ * @swagger
+ * tags:
+ *   - name: Plans
+ *     description: Subscription plan management
+ */
+
 // ============================================================================
 // PUBLIC ROUTES (No Authentication Required)
 // ============================================================================
 
 /**
- * @route   GET /api/plans/public
- * @desc    Get public plans (filtered by planType if provided)
- * @access  Public
+ * @swagger
+ * /api/plans/public:
+ *   get:
+ *     summary: Get public plans
+ *     tags: [Plans]
+ *     parameters:
+ *       - in: query
+ *         name: planType
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: List of public plans
  */
 router.get("/public", planController.getPublicPlans);
 

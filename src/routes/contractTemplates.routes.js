@@ -16,6 +16,12 @@ const { protect } = require('../middlewares/auth.middleware');
 const { authRBAC, requireRole } = require('../middlewares/rbacAuth.middleware');
 
 const router = express.Router();
+/**
+ * @swagger
+ * tags:
+ *   - name: Contract Templates
+ *     description: Contract Templates API endpoints
+ */
 
 // Apply authentication middleware to all routes
 router.use(protect);

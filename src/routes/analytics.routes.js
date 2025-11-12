@@ -3,6 +3,13 @@ const router = express.Router();
 const authMiddleware = require("../middlewares/auth.middleware");
 const analyticsController = require("../controllers/analytics.controller");
 
+/**
+ * @swagger
+ * tags:
+ *   - name: Analytics
+ *     description: Analytics tracking and reporting
+ */
+
 // Analytics Events Routes
 router.post("/events/batch", analyticsController.batchEvents);
 router.post("/events/single", analyticsController.singleEvent);

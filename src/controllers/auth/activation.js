@@ -54,7 +54,7 @@ const activateAccount = async (req, res) => {
 
     // User needs to set a password
     console.log("👤 User needs to set password:", user.email);
-    
+
     res.json({
       success: true,
       message: "Account activation verified! Please set your password to complete the process.",
@@ -127,12 +127,8 @@ const setPassword = async (req, res) => {
 
     console.log("✅ Valid token found, setting password for user:", user.email);
 
-    // Hash the password
-    const saltRounds = 12;
-    const hashedPassword = await bcrypt.hash(password, saltRounds);
-
-    // Update user
-    user.password = hashedPassword;
+    // Set the password (will be hashed by pre-save middleware)
+    user.password = password;
     user.isPendingUser = false;
     user.isEmailVerified = true;
     user.activationToken = undefined;

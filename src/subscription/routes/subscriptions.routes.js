@@ -5,6 +5,13 @@ const { protect, restrictTo } = require('../../middlewares/auth.middleware');
 
 const router = express.Router();
 
+/**
+ * @swagger
+ * tags:
+ *   - name: Subscriptions
+ *     description: Subscription management endpoints
+ */
+
 // Validation middleware
 const validateSubscriptionUpdate = [
   body('newPlanId').isMongoId().withMessage('Valid new plan ID is required'),
@@ -25,9 +32,34 @@ const validateMongoId = [
 // Routes
 
 /**
- * @route   PATCH /api/v1/subscriptions/:id
- * @desc    Update subscription (upgrade/downgrade)
- * @access  Admin
+ * @swagger
+ * /api/v1/subscriptions/{id}:
+ *   patch:
+ *     summary: Update subscription (upgrade/downgrade) - Admin
+ *     tags: [Subscriptions]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               newPlanId:
+ *                 type: string
+ *               changeType:
+ *                 type: string
+ *                 enum: [immediate, end_of_period]
+ *     responses:
+ *       200:
+ *         description: Subscription updated
  */
 router.patch('/:id',
   protect,

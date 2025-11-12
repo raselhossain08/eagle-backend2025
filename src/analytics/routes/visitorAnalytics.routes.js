@@ -1,5 +1,11 @@
 const express = require('express');
 const router = express.Router();
+/**
+ * @swagger
+ * tags:
+ *   - name: Visitor Analytics
+ *     description: Visitor Analytics API endpoints
+ */
 const visitorAnalyticsController = require('../controllers/visitorAnalytics.controller');
 const { protect: authenticateUser } = require('../../../middlewares/auth.middleware');
 const rbac = require('../../../middlewares/rbac.middleware');

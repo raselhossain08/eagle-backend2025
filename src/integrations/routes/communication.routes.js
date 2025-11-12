@@ -5,6 +5,12 @@
 
 const express = require('express');
 const router = express.Router();
+/**
+ * @swagger
+ * tags:
+ *   - name: Communication Integrations
+ *     description: Communication Integrations API endpoints
+ */
 const CommunicationController = require('../controllers/CommunicationController');
 const { protect } = require('../../middlewares/auth.middleware');
 

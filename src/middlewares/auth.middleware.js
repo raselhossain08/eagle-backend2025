@@ -159,11 +159,14 @@ exports.protect = async (req, res, next) => {
  * Professional Eagle optional authentication - allows both authenticated and guest users
  */
 exports.optionalAuth = async (req, res, next) => {
+  console.log('🔓 [OPTIONAL AUTH] Middleware called for:', req.method, req.path);
+
   try {
     const token = extractEagleToken(req);
 
     if (!token) {
       // No token provided, continue as guest with professional context
+      console.log('✅ [OPTIONAL AUTH] No token found - continuing as guest');
       req.user = null;
       req.authMethod = 'Guest_Session';
       req.isGuest = true;

@@ -4,6 +4,12 @@ const { protect: authenticateToken } = require('../../../middlewares/auth.middle
 const rbac = require('../../../middlewares/rbac.middleware');
 
 const router = express.Router();
+/**
+ * @swagger
+ * tags:
+ *   - name: Communication Providers
+ *     description: Communication Providers API endpoints
+ */
 
 // Email operations routes (protected)
 router.post('/email/send',

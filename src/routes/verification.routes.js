@@ -1,5 +1,11 @@
 const express = require('express');
 const router = express.Router();
+/**
+ * @swagger
+ * tags:
+ *   - name: Verification
+ *     description: Verification API endpoints
+ */
 const {
     sendVerificationEmail,
     verifyEmail,

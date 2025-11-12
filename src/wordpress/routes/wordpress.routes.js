@@ -1,5 +1,11 @@
 const express = require('express');
 const router = express.Router();
+/**
+ * @swagger
+ * tags:
+ *   - name: WordPress Integration
+ *     description: WordPress Integration API endpoints
+ */
 const wordpressController = require('../controllers/wordpress.controller');
 const { protect } = require('../../middlewares/auth.middleware');
 

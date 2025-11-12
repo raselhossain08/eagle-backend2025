@@ -168,16 +168,15 @@ const handlePostPaymentUserAccount = async (contract) => {
         await contract.save();
       }
 
-      // Send password setup email
-      await emailService.sendPasswordSetupEmail(
+      // Send account activation email (password setup)
+      await emailService.sendAccountActivationEmail(
         user.email,
         user.name,
         user.activationToken,
-        contract.productType,
         process.env.FRONTEND_URL || 'http://localhost:3000'
       );
 
-      console.log("📧 Updated password setup email sent to pending user:", user.email);
+      console.log("📧 Account activation email sent to pending user:", user.email);
 
       return {
         status: 'updated_pending_user',

@@ -6,13 +6,47 @@ const TaxService = require('../../payment/services/tax.service');
 const transactionTaxService = new TransactionTaxService();
 const { protect, adminOnly } = require('../../middlewares/auth.middleware');
 
+/**
+ * @swagger
+ * tags:
+ *   - name: Transaction Tax
+ *     description: Transaction tax calculation and management
+ */
+
 // Apply authentication to all routes
 router.use(protect);
 
 /**
- * @route   POST /api/transactions/tax/calculate
- * @desc    Calculate tax for a transaction preview (before payment)
- * @access  Private
+ * @swagger
+ * /api/transactions/tax/calculate:
+ *   post:
+ *     summary: Calculate tax for transaction preview
+ *     tags: [Transaction Tax]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - amount
+ *               - userLocation
+ *             properties:
+ *               amount:
+ *                 type: number
+ *               currency:
+ *                 type: string
+ *               userLocation:
+ *                 type: object
+ *               productType:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Tax calculated
  */
 router.post('/calculate', async (req, res) => {
     try {
@@ -69,9 +103,27 @@ router.post('/calculate', async (req, res) => {
 });
 
 /**
- * @route   POST /api/transactions/tax/subscription-preview
- * @desc    Calculate tax preview for subscription
- * @access  Private
+ * @swagger
+ * /api/transactions/tax/subscription-preview:
+ *   post:
+ *     summary: Calculate tax preview for subscription
+ *     tags: [Transaction Tax]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               subscriptionData:
+ *                 type: object
+ *               planData:
+ *                 type: object
+ *     responses:
+ *       200:
+ *         description: Subscription tax preview
  */
 router.post('/subscription-preview', async (req, res) => {
     try {
@@ -120,9 +172,42 @@ router.post('/subscription-preview', async (req, res) => {
 });
 
 /**
- * @route   GET /api/transactions/tax/report
- * @desc    Generate tax report for transactions
- * @access  Private/Admin
+ * @swagger
+ * /api/transactions/tax/report:
+ *   get:
+ *     summary: Generate tax report for transactions (Admin)
+ *     tags: [Transaction Tax]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: endDate
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: date
+ *       - in: query
+ *         name: country
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: state
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: format
+ *         schema:
+ *           type: string
+ *           enum: [json, csv]
+ *     responses:
+ *       200:
+ *         description: Tax report generated
  */
 router.get('/report', adminOnly, async (req, res) => {
     try {
@@ -176,9 +261,33 @@ router.get('/report', adminOnly, async (req, res) => {
 });
 
 /**
- * @route   GET /api/transactions/tax/rates
- * @desc    Get available tax rates by location
- * @access  Private/Admin
+ * @swagger
+ * /api/transactions/tax/rates:
+ *   get:
+ *     summary: Get available tax rates by location (Admin)
+ *     tags: [Transaction Tax]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: country
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: searchTerm
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Tax rates retrieved
  */
 router.get('/rates', adminOnly, async (req, res) => {
     try {
@@ -210,9 +319,42 @@ router.get('/rates', adminOnly, async (req, res) => {
 });
 
 /**
- * @route   POST /api/transactions/:transactionId/tax/update
- * @desc    Update tax information for existing transaction
- * @access  Private/Admin
+ * @swagger
+ * /api/transactions/{transactionId}/tax/update:
+ *   post:
+ *     summary: Update tax information for existing transaction (Admin)
+ *     tags: [Transaction Tax]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: transactionId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - taxAmount
+ *               - reason
+ *             properties:
+ *               taxAmount:
+ *                 type: number
+ *               taxRate:
+ *                 type: number
+ *               jurisdiction:
+ *                 type: string
+ *               provider:
+ *                 type: string
+ *               reason:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Transaction tax updated
  */
 router.post('/:transactionId/tax/update', adminOnly, async (req, res) => {
     try {
@@ -261,9 +403,27 @@ router.post('/:transactionId/tax/update', adminOnly, async (req, res) => {
 });
 
 /**
- * @route   GET /api/transactions/tax/jurisdictions
- * @desc    Get available tax jurisdictions
- * @access  Private/Admin
+ * @swagger
+ * /api/transactions/tax/jurisdictions:
+ *   get:
+ *     summary: Get available tax jurisdictions (Admin)
+ *     tags: [Transaction Tax]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Tax jurisdictions retrieved
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
  */
 router.get('/jurisdictions', adminOnly, async (req, res) => {
     try {

@@ -5,6 +5,13 @@ const { protect, restrictTo } = require('../../middlewares/auth.middleware');
 
 const router = express.Router();
 
+/**
+ * @swagger
+ * tags:
+ *   - name: Invoices
+ *     description: Invoice management and financial operations
+ */
+
 // Validation middleware
 const validateInvoiceCreate = [
   body('userId').isMongoId().withMessage('Valid user ID is required'),
@@ -36,9 +43,74 @@ const validateMongoId = [
 // Routes
 
 /**
- * @route   GET /api/v1/invoices
- * @desc    Get invoices with filtering
- * @access  Admin
+ * @swagger
+ * /api/invoices:
+ *   get:
+ *     summary: Get invoices with filtering (Admin)
+ *     tags: [Invoices]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: subscriber_id
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: start_date
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *       - in: query
+ *         name: end_date
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *     responses:
+ *       200:
+ *         description: List of invoices
+ *   post:
+ *     summary: Create new invoice (Admin)
+ *     tags: [Invoices]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - userId
+ *               - items
+ *             properties:
+ *               userId:
+ *                 type: string
+ *               subscriptionId:
+ *                 type: string
+ *               items:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     description:
+ *                       type: string
+ *                     quantity:
+ *                       type: number
+ *                     unitPrice:
+ *                       type: number
+ *                     totalPrice:
+ *                       type: number
+ *     responses:
+ *       201:
+ *         description: Invoice created
  */
 router.get('/',
   protect,
@@ -51,11 +123,6 @@ router.get('/',
   invoiceController.getInvoices
 );
 
-/**
- * @route   POST /api/v1/invoices
- * @desc    Create new invoice
- * @access  Admin
- */
 router.post('/',
   protect,
   restrictTo('admin', 'manager'),
@@ -64,9 +131,22 @@ router.post('/',
 );
 
 /**
- * @route   GET /api/v1/invoices/:id
- * @desc    Get single invoice
- * @access  Admin
+ * @swagger
+ * /api/invoices/{id}:
+ *   get:
+ *     summary: Get single invoice (Admin)
+ *     tags: [Invoices]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Invoice details
  */
 router.get('/:id',
   protect,
@@ -76,9 +156,33 @@ router.get('/:id',
 );
 
 /**
- * @route   POST /api/v1/invoices/:id/refund
- * @desc    Process refund for invoice
- * @access  Admin (role-gated)
+ * @swagger
+ * /api/invoices/{id}/refund:
+ *   post:
+ *     summary: Process refund for invoice (Admin)
+ *     tags: [Invoices]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               amount:
+ *                 type: number
+ *               reason:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Refund processed
  */
 router.post('/:id/refund',
   protect,
@@ -89,9 +193,22 @@ router.post('/:id/refund',
 );
 
 /**
- * @route   GET /api/v1/invoices/:id/pdf
- * @desc    Generate and download invoice PDF
- * @access  Admin
+ * @swagger
+ * /api/invoices/{id}/pdf:
+ *   get:
+ *     summary: Generate and download invoice PDF (Admin)
+ *     tags: [Invoices]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: PDF generated
  */
 router.get('/:id/pdf',
   protect,
@@ -101,9 +218,36 @@ router.get('/:id/pdf',
 );
 
 /**
- * @route   POST /api/v1/invoices/:id/send
- * @desc    Send invoice via email
- * @access  Admin
+ * @swagger
+ * /api/invoices/{id}/send:
+ *   post:
+ *     summary: Send invoice via email (Admin)
+ *     tags: [Invoices]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               recipient:
+ *                 type: string
+ *                 format: email
+ *               subject:
+ *                 type: string
+ *               message:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Email sent
  */
 router.post('/:id/send',
   protect,
@@ -114,9 +258,32 @@ router.post('/:id/send',
 );
 
 /**
- * @route   GET /api/v1/export/financials
- * @desc    Export financial data
- * @access  Admin
+ * @swagger
+ * /api/invoices/export/financials:
+ *   get:
+ *     summary: Export financial data (Admin)
+ *     tags: [Invoices]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: format
+ *         schema:
+ *           type: string
+ *           enum: [csv, json]
+ *       - in: query
+ *         name: start_date
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *       - in: query
+ *         name: end_date
+ *         schema:
+ *           type: string
+ *           format: date-time
+ *     responses:
+ *       200:
+ *         description: Financial data exported
  */
 router.get('/export/financials',
   protect,

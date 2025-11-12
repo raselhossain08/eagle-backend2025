@@ -1,5 +1,11 @@
 const express = require("express");
 const router = express.Router();
+/**
+ * @swagger
+ * tags:
+ *   - name: Admin Dashboard - Users
+ *     description: Admin Dashboard - Users API endpoints
+ */
 
 // Import controllers
 const {
@@ -22,77 +28,332 @@ const { protect } = require("../../middlewares/auth.middleware");
 // All routes are protected and require admin access
 
 /**
- * @route   GET /api/admin/users
- * @desc    Get all users with filtering, pagination, and sorting
- * @access  Private (Admin only)
- * @query   page, limit, search, role, subscription, subscriptionStatus, userType, isActive, isBlocked, isEmailVerified, sortBy, sortOrder
+ * @swagger
+ * /api/admin/users:
+ *   get:
+ *     summary: Get all users with filtering, pagination, and sorting
+ *     tags: [Admin Dashboard - Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *         description: Items per page
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *         description: Search term
+ *       - in: query
+ *         name: role
+ *         schema:
+ *           type: string
+ *         description: Filter by role
+ *       - in: query
+ *         name: subscription
+ *         schema:
+ *           type: string
+ *         description: Filter by subscription
+ *       - in: query
+ *         name: subscriptionStatus
+ *         schema:
+ *           type: string
+ *         description: Filter by subscription status
+ *       - in: query
+ *         name: userType
+ *         schema:
+ *           type: string
+ *         description: Filter by user type
+ *       - in: query
+ *         name: isActive
+ *         schema:
+ *           type: boolean
+ *         description: Filter by active status
+ *       - in: query
+ *         name: isBlocked
+ *         schema:
+ *           type: boolean
+ *         description: Filter by blocked status
+ *       - in: query
+ *         name: isEmailVerified
+ *         schema:
+ *           type: boolean
+ *         description: Filter by email verification
+ *       - in: query
+ *         name: sortBy
+ *         schema:
+ *           type: string
+ *         description: Sort field
+ *       - in: query
+ *         name: sortOrder
+ *         schema:
+ *           type: string
+ *           enum: [asc, desc]
+ *         description: Sort order
+ *     responses:
+ *       200:
+ *         description: Users retrieved successfully
+ *       401:
+ *         description: Unauthorized
  */
 router.get("/", protect, getAllUsers);
 
 /**
- * @route   GET /api/admin/users/stats
- * @desc    Get user statistics for dashboard
- * @access  Private (Admin only)
+ * @swagger
+ * /api/admin/users/stats:
+ *   get:
+ *     summary: Get user statistics for dashboard
+ *     tags: [Admin Dashboard - Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Statistics retrieved successfully
  */
 router.get("/stats", protect, getUserStats);
 
 /**
- * @route   GET /api/admin/users/export
- * @desc    Export users data (JSON/CSV)
- * @access  Private (Admin only)
- * @query   format, role, subscription, subscriptionStatus, isActive, isBlocked
+ * @swagger
+ * /api/admin/users/export:
+ *   get:
+ *     summary: Export users data (JSON/CSV)
+ *     tags: [Admin Dashboard - Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: format
+ *         schema:
+ *           type: string
+ *           enum: [json, csv]
+ *         description: Export format
+ *       - in: query
+ *         name: role
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: subscription
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: subscriptionStatus
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: isActive
+ *         schema:
+ *           type: boolean
+ *       - in: query
+ *         name: isBlocked
+ *         schema:
+ *           type: boolean
+ *     responses:
+ *       200:
+ *         description: Users exported successfully
  */
 router.get("/export", protect, exportUsers);
 
 /**
- * @route   POST /api/admin/users/search
- * @desc    Advanced search for users
- * @access  Private (Admin only)
+ * @swagger
+ * /api/admin/users/search:
+ *   post:
+ *     summary: Advanced search for users
+ *     tags: [Admin Dashboard - Users]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               searchTerm:
+ *                 type: string
+ *               filters:
+ *                 type: object
+ *     responses:
+ *       200:
+ *         description: Search results
  */
 router.post("/search", protect, searchUsers);
 
 /**
- * @route   GET /api/admin/users/:id
- * @desc    Get single user details
- * @access  Private (Admin only)
+ * @swagger
+ * /api/admin/users/{id}:
+ *   get:
+ *     summary: Get single user details
+ *     tags: [Admin Dashboard - Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID
+ *     responses:
+ *       200:
+ *         description: User details retrieved
+ *       404:
+ *         description: User not found
  */
 router.get("/:id", protect, getUserDetails);
 
 /**
- * @route   PUT /api/admin/users/:id
- * @desc    Update user details
- * @access  Private (Admin only)
+ * @swagger
+ * /api/admin/users/{id}:
+ *   put:
+ *     summary: Update user details
+ *     tags: [Admin Dashboard - Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *     responses:
+ *       200:
+ *         description: User updated successfully
  */
 router.put("/:id", protect, updateUser);
 
 /**
- * @route   PUT /api/admin/users/:id/block
- * @desc    Block or unblock a user
- * @access  Private (Admin only)
- * @body    { isBlocked: boolean, blockedReason?: string }
+ * @swagger
+ * /api/admin/users/{id}/block:
+ *   put:
+ *     summary: Block or unblock a user
+ *     tags: [Admin Dashboard - Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               isBlocked:
+ *                 type: boolean
+ *               blockedReason:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: User block status updated
  */
 router.put("/:id/block", protect, toggleBlockUser);
 
 /**
- * @route   PUT /api/admin/users/:id/activate
- * @desc    Activate or deactivate a user
- * @access  Private (Admin only)
- * @body    { isActive: boolean }
+ * @swagger
+ * /api/admin/users/{id}/activate:
+ *   put:
+ *     summary: Activate or deactivate a user
+ *     tags: [Admin Dashboard - Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               isActive:
+ *                 type: boolean
+ *     responses:
+ *       200:
+ *         description: User activation status updated
  */
 router.put("/:id/activate", protect, toggleActivateUser);
 
 /**
- * @route   PUT /api/admin/users/:id/subscription
- * @desc    Update user subscription from admin panel
- * @access  Private (Admin only)
- * @body    { subscription, subscriptionStatus, billingCycle, subscriptionEndDate }
+ * @swagger
+ * /api/admin/users/{id}/subscription:
+ *   put:
+ *     summary: Update user subscription from admin panel
+ *     tags: [Admin Dashboard - Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               subscription:
+ *                 type: string
+ *               subscriptionStatus:
+ *                 type: string
+ *               billingCycle:
+ *                 type: string
+ *               subscriptionEndDate:
+ *                 type: string
+ *                 format: date-time
+ *     responses:
+ *       200:
+ *         description: User subscription updated
  */
 router.put("/:id/subscription", protect, updateUserSubscription);
 
 /**
- * @route   DELETE /api/admin/users/:id
- * @desc    Delete a user (permanent)
- * @access  Private (Admin only)
+ * @swagger
+ * /api/admin/users/{id}:
+ *   delete:
+ *     summary: Delete a user (permanent)
+ *     tags: [Admin Dashboard - Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: User ID
+ *     responses:
+ *       200:
+ *         description: User deleted successfully
+ *       404:
+ *         description: User not found
  */
 router.delete("/:id", protect, deleteUser);
 

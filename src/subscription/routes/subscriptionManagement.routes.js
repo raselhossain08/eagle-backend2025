@@ -19,43 +19,90 @@ const {
     analyticsLimiter
 } = require('../middlewares/rateLimiter.middleware');
 
+/**
+ * @swagger
+ * tags:
+ *   - name: Subscription Management
+ *     description: Admin dashboard subscription management
+ */
+
 // Apply authentication to all routes
 router.use(protect);
 router.use(restrictTo('admin', 'superAdmin', 'support'));
 
 /**
- * @route   GET /api/subscription/analytics
- * @desc    Get subscription analytics and metrics
- * @access  Admin
+ * @swagger
+ * /api/subscription/analytics:
+ *   get:
+ *     summary: Get subscription analytics and metrics (Admin)
+ *     tags: [Subscription Management]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Analytics data
  */
 router.get('/analytics', analyticsLimiter, subscriptionManagementController.getAnalytics);
 
 /**
- * @route   GET /api/subscription/analytics/mrr
- * @desc    Get Monthly Recurring Revenue metrics
- * @access  Admin
+ * @swagger
+ * /api/subscription/analytics/mrr:
+ *   get:
+ *     summary: Get Monthly Recurring Revenue metrics (Admin)
+ *     tags: [Subscription Management]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: MRR metrics
  */
 router.get('/analytics/mrr', analyticsLimiter, subscriptionAnalyticsController.getMRRMetrics);
 
 /**
- * @route   GET /api/subscription/analytics/churn
- * @desc    Get churn analytics
- * @access  Admin
+ * @swagger
+ * /api/subscription/analytics/churn:
+ *   get:
+ *     summary: Get churn analytics (Admin)
+ *     tags: [Subscription Management]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Churn data
  */
 router.get('/analytics/churn', analyticsLimiter, subscriptionAnalyticsController.getChurnAnalytics);
 
 /**
- * @route   GET /api/subscription/analytics/growth
- * @desc    Get growth trends
- * @access  Admin
+ * @swagger
+ * /api/subscription/analytics/growth:
+ *   get:
+ *     summary: Get growth trends (Admin)
+ *     tags: [Subscription Management]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Growth trends
  */
 router.get('/analytics/growth', analyticsLimiter, subscriptionAnalyticsController.getGrowthTrends);
 
 /**
- * @route   GET /api/subscription/expiring-soon
- * @desc    Get subscriptions expiring soon
- * @access  Admin
- * @query   days - number of days to look ahead (default: 7)
+ * @swagger
+ * /api/subscription/expiring-soon:
+ *   get:
+ *     summary: Get subscriptions expiring soon (Admin)
+ *     tags: [Subscription Management]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: days
+ *         schema:
+ *           type: integer
+ *           default: 7
+ *     responses:
+ *       200:
+ *         description: Expiring subscriptions
  */
 router.get('/expiring-soon',
     generalLimiter,

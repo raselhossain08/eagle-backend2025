@@ -1,5 +1,11 @@
 const express = require('express');
 const router = express.Router();
+/**
+ * @swagger
+ * tags:
+ *   - name: Permissions
+ *     description: Permissions API endpoints
+ */
 const PermissionController = require('../controllers/permission.controller');
 const RBACMiddleware = require('../middlewares/rbac.middleware');
 const AdminAuthMiddleware = require('../middlewares/auth.middleware');

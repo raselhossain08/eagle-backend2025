@@ -3,27 +3,55 @@ const router = express.Router();
 const TwoFactorController = require('../controllers/twoFactor.controller');
 const { protect } = require('../middlewares/auth.middleware');
 
+/**
+ * @swagger
+ * tags:
+ *   - name: Two-Factor Authentication
+ *     description: Two-factor authentication (2FA) management
+ */
+
 // All 2FA routes require authentication
 router.use(protect);
 
 /**
- * @route   POST /api/auth/2fa/setup
- * @desc    Initiate 2FA setup (generate QR code)
- * @access  Private
+ * @swagger
+ * /api/auth/2fa/setup:
+ *   post:
+ *     summary: Initiate 2FA setup (generate QR code)
+ *     tags: [Two-Factor Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: QR code generated
  */
 router.post('/setup', TwoFactorController.initiateTwoFactorSetup);
 
 /**
- * @route   POST /api/auth/2fa/enable
- * @desc    Enable 2FA after verifying setup
- * @access  Private
+ * @swagger
+ * /api/auth/2fa/enable:
+ *   post:
+ *     summary: Enable 2FA after verifying setup
+ *     tags: [Two-Factor Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: 2FA enabled
  */
 router.post('/enable', TwoFactorController.enableTwoFactor);
 
 /**
- * @route   POST /api/auth/2fa/disable
- * @desc    Disable 2FA for user
- * @access  Private
+ * @swagger
+ * /api/auth/2fa/disable:
+ *   post:
+ *     summary: Disable 2FA for user
+ *     tags: [Two-Factor Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: 2FA disabled
  */
 router.post('/disable', TwoFactorController.disableTwoFactor);
 

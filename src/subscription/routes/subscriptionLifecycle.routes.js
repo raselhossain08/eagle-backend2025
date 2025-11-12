@@ -9,6 +9,13 @@ const { body, param, query } = require('express-validator');
 const subscriptionLifecycleController = require('../controllers/subscriptionLifecycle.controller');
 const { protect, restrictTo } = require('../../middlewares/auth.middleware');
 
+/**
+ * @swagger
+ * tags:
+ *   - name: Subscription Lifecycle
+ *     description: Complete subscription lifecycle management
+ */
+
 // Input validation middleware
 const validateSubscriptionCreate = [
     body('userId')

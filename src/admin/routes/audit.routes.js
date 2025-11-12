@@ -1,5 +1,11 @@
 const express = require('express');
 const router = express.Router();
+/**
+ * @swagger
+ * tags:
+ *   - name: Audit Logs
+ *     description: Audit Logs API endpoints
+ */
 const AuditController = require('../controllers/audit.controller');
 const RBACMiddleware = require('../middlewares/rbac.middleware');
 const AdminAuthMiddleware = require('../middlewares/auth.middleware');

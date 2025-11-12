@@ -2,6 +2,12 @@ const express = require('express');
 const campaignController = require('../controllers/campaign.controller');
 
 const router = express.Router();
+/**
+ * @swagger
+ * tags:
+ *   - name: Analytics Campaigns
+ *     description: Analytics Campaigns API endpoints
+ */
 
 router
     .route('/')

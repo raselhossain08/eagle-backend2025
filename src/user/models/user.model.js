@@ -267,6 +267,10 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: null
     },
+    tempPassword: {
+      type: String,
+      default: null
+    },
 
     // Profile Information
     profilePicture: {

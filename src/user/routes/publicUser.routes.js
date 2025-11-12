@@ -1,5 +1,11 @@
 const express = require("express");
 const router = express.Router();
+/**
+ * @swagger
+ * tags:
+ *   - name: Public User
+ *     description: Public User API endpoints
+ */
 
 // Import controllers
 const {

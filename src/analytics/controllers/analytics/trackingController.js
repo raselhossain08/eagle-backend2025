@@ -7,6 +7,11 @@ const AnalyticsService = require('../../services/analytics.service');
  */
 const trackPageView = async (req, res) => {
   try {
+    console.log('📊 Analytics pageview request:', {
+      body: req.body,
+      headers: req.headers.origin
+    });
+
     const {
       sessionId,
       userId,
@@ -18,11 +23,12 @@ const trackPageView = async (req, res) => {
       duration = 0
     } = req.body;
 
-    // Validate required fields
-    if (!sessionId || !page || !deviceType || !trafficSource) {
+    // Make validation more lenient
+    if (!page) {
       return res.status(400).json({
         success: false,
-        message: 'Missing required fields: sessionId, page, deviceType, trafficSource'
+        message: 'Missing required field: page',
+        received: req.body
       });
     }
 
@@ -30,14 +36,14 @@ const trackPageView = async (req, res) => {
     const ipAddress = req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for'];
 
     const pageViewData = {
-      sessionId,
+      sessionId: sessionId || 'anonymous',
       userId,
       page,
       referrer,
-      userAgent,
+      userAgent: userAgent || req.headers['user-agent'],
       ipAddress,
-      deviceType,
-      trafficSource,
+      deviceType: deviceType || 'desktop',
+      trafficSource: trafficSource || 'direct',
       duration,
       timestamp: new Date()
     };

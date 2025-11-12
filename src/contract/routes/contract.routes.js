@@ -15,6 +15,13 @@
 const express = require('express');
 const router = express.Router();
 
+/**
+ * @swagger
+ * tags:
+ *   - name: Contracts
+ *     description: Contract management and signing operations
+ */
+
 // Import enhanced contract routes (primary system)
 const enhancedRoutes = require('./enhancedContract.routes');
 

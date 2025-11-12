@@ -1,32 +1,72 @@
 // Email service for sending various types of emails
-// Note: This is a placeholder implementation. 
-// In production, integrate with your preferred email service (SendGrid, Mailgun, etc.)
+const nodemailer = require('nodemailer');
+
+// Create reusable transporter using Gmail
+const createTransporter = () => {
+  if (!process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+    console.error('❌ [EMAIL SERVICE] Missing EMAIL_USER or EMAIL_PASS in environment variables');
+    return null;
+  }
+
+  return nodemailer.createTransport({
+    service: 'gmail',
+    auth: {
+      user: process.env.EMAIL_USER,
+      pass: process.env.EMAIL_PASS,
+    },
+  });
+};
 
 const sendEmail = async (to, subject, htmlContent, textContent = null) => {
   try {
     console.log(`📧 [EMAIL SERVICE] Sending email to: ${to}`);
     console.log(`📧 [EMAIL SERVICE] Subject: ${subject}`);
-    console.log(`📧 [EMAIL SERVICE] Content: ${htmlContent.substring(0, 100)}...`);
-    
-    // TODO: Implement actual email sending logic here
-    // For now, just log the email content for debugging
-    
+
+    const transporter = createTransporter();
+
+    if (!transporter) {
+      console.error('❌ [EMAIL SERVICE] Failed to create transporter - check email configuration');
+      return {
+        success: false,
+        error: 'Email service not configured'
+      };
+    }
+
+    const mailOptions = {
+      from: process.env.EMAIL_FROM || process.env.EMAIL_USER,
+      to: to,
+      subject: subject,
+      html: htmlContent,
+      text: textContent || htmlContent.replace(/<[^>]*>/g, ''), // Strip HTML for text version
+    };
+
+    const info = await transporter.sendMail(mailOptions);
+
+    console.log('✅ [EMAIL SERVICE] Email sent successfully:', info.messageId);
+
     return {
       success: true,
-      messageId: `msg_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+      messageId: info.messageId,
       to,
       subject
     };
   } catch (error) {
-    console.error(`❌ [EMAIL SERVICE] Error sending email to ${to}:`, error);
-    throw error;
+    console.error(`❌ [EMAIL SERVICE] Error sending email to ${to}:`, error.message);
+
+    // Return error details instead of throwing to prevent payment flow disruption
+    return {
+      success: false,
+      error: error.message,
+      to,
+      subject
+    };
   }
 };
 
 const sendAccountActivationEmail = async (email, name, activationToken, frontendUrl) => {
   try {
     const activationUrl = `${frontendUrl}/activate?token=${activationToken}`;
-    
+
     const subject = "Activate Your Eagle Investors Account";
     const htmlContent = `
       <!DOCTYPE html>
@@ -75,7 +115,7 @@ const sendAccountActivationEmail = async (email, name, activationToken, frontend
         </body>
       </html>
     `;
-    
+
     const textContent = `
       Welcome to Eagle Investors!
       
@@ -89,11 +129,11 @@ const sendAccountActivationEmail = async (email, name, activationToken, frontend
       
       If you didn't create an account with Eagle Investors, you can safely ignore this email.
     `;
-    
+
     return await sendEmail(email, subject, htmlContent, textContent);
   } catch (error) {
     console.error("❌ Error sending account activation email:", error);
-    throw error;
+    return { success: false, error: error.message };
   }
 };
 
@@ -136,11 +176,11 @@ const sendWelcomeEmail = async (email, name, productType, frontendUrl) => {
         </body>
       </html>
     `;
-    
+
     return await sendEmail(email, subject, htmlContent);
   } catch (error) {
     console.error("❌ Error sending welcome email:", error);
-    throw error;
+    return { success: false, error: error.message };
   }
 };
 
@@ -181,11 +221,206 @@ const sendContractConfirmationEmail = async (email, name, contractId, productTyp
         </body>
       </html>
     `;
-    
+
     return await sendEmail(email, subject, htmlContent);
   } catch (error) {
     console.error("❌ Error sending contract confirmation email:", error);
-    throw error;
+    return { success: false, error: error.message };
+  }
+};
+
+/**
+ * Send subscription confirmation email with account credentials and plan details
+ * For guest users who purchased a subscription
+ */
+const sendSubscriptionConfirmationEmail = async ({
+  email,
+  name,
+  tempPassword,
+  planName,
+  subscriptionType,
+  amount,
+  startDate,
+  endDate,
+  duration,
+  transactionId,
+  contractId,
+  frontendUrl,
+  isNewAccount = true
+}) => {
+  try {
+    const subject = isNewAccount
+      ? "🎉 Welcome to Eagle Investors - Your Subscription is Active!"
+      : "✅ Subscription Confirmation - Payment Successful";
+
+    // Calculate duration in days
+    const durationInDays = Math.ceil((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24));
+
+    // Format dates
+    const formattedStartDate = new Date(startDate).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+
+    const formattedEndDate = new Date(endDate).toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <meta charset="utf-8">
+          <title>Subscription Confirmation</title>
+        </head>
+        <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; background: #f4f4f4;">
+          <div style="background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+            <!-- Header -->
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px 20px; text-align: center;">
+              <h1 style="margin: 0; font-size: 32px;">🎉 Welcome to Eagle Investors!</h1>
+              <p style="margin: 10px 0 0 0; font-size: 16px; opacity: 0.9;">Your subscription is now active</p>
+            </div>
+            
+            <!-- Content -->
+            <div style="padding: 30px;">
+              <h2 style="color: #333; margin-bottom: 20px;">Hello ${name},</h2>
+              
+              <p style="font-size: 16px; margin-bottom: 20px; color: #555;">
+                Thank you for subscribing to <strong>${planName}</strong>! Your payment has been processed successfully, and your subscription is now active.
+              </p>
+              
+              ${isNewAccount ? `
+              <!-- Account Credentials Section -->
+              <div style="background: #fff3cd; border-left: 4px solid #ffc107; padding: 20px; border-radius: 5px; margin: 25px 0;">
+                <h3 style="margin: 0 0 15px 0; color: #856404;">🔐 Your Account Credentials</h3>
+                <p style="margin: 5px 0; color: #856404;"><strong>Email:</strong> ${email}</p>
+                <p style="margin: 5px 0; color: #856404;"><strong>Temporary Password:</strong> <code style="background: #fff; padding: 5px 10px; border-radius: 3px; font-size: 14px;">${tempPassword}</code></p>
+                <p style="margin: 15px 0 0 0; font-size: 14px; color: #856404;">
+                  ⚠️ <strong>Important:</strong> Please change your password after your first login for security.
+                </p>
+              </div>
+              ` : ''}
+              
+              <!-- Subscription Details -->
+              <div style="background: #e7f3ff; border-left: 4px solid #2196F3; padding: 20px; border-radius: 5px; margin: 25px 0;">
+                <h3 style="margin: 0 0 15px 0; color: #1976D2;">📋 Subscription Details</h3>
+                <table style="width: 100%; border-collapse: collapse;">
+                  <tr>
+                    <td style="padding: 8px 0; color: #555;"><strong>Plan:</strong></td>
+                    <td style="padding: 8px 0; color: #333; text-align: right;">${planName}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px 0; color: #555;"><strong>Billing Cycle:</strong></td>
+                    <td style="padding: 8px 0; color: #333; text-align: right;">${subscriptionType}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px 0; color: #555;"><strong>Amount Paid:</strong></td>
+                    <td style="padding: 8px 0; color: #333; text-align: right; font-size: 18px; font-weight: bold;">$${amount.toFixed(2)}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px 0; color: #555;"><strong>Duration:</strong></td>
+                    <td style="padding: 8px 0; color: #333; text-align: right;">${duration || `${durationInDays} days`}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px 0; color: #555; border-top: 1px solid #ddd; padding-top: 12px;"><strong>Start Date:</strong></td>
+                    <td style="padding: 8px 0; color: #333; text-align: right; border-top: 1px solid #ddd; padding-top: 12px;">${formattedStartDate}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px 0; color: #555;"><strong>End Date:</strong></td>
+                    <td style="padding: 8px 0; color: #333; text-align: right;">${formattedEndDate}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px 0; color: #555; border-top: 1px solid #ddd; padding-top: 12px;"><strong>Transaction ID:</strong></td>
+                    <td style="padding: 8px 0; color: #666; text-align: right; font-size: 12px; border-top: 1px solid #ddd; padding-top: 12px;">${transactionId}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 8px 0; color: #555;"><strong>Contract ID:</strong></td>
+                    <td style="padding: 8px 0; color: #666; text-align: right; font-size: 12px;">${contractId}</td>
+                  </tr>
+                </table>
+              </div>
+              
+              <!-- Next Steps -->
+              <div style="background: #f0f9ff; border-left: 4px solid #667eea; padding: 20px; border-radius: 5px; margin: 25px 0;">
+                <h3 style="margin: 0 0 15px 0; color: #667eea;">🚀 What's Next?</h3>
+                <ol style="margin: 0; padding-left: 20px; color: #555;">
+                  <li style="margin-bottom: 10px;">Log in to your account using the credentials ${isNewAccount ? 'above' : 'you already have'}</li>
+                  ${isNewAccount ? '<li style="margin-bottom: 10px;">Change your temporary password to something secure</li>' : ''}
+                  <li style="margin-bottom: 10px;">Access your dashboard to view all available features</li>
+                  <li style="margin-bottom: 10px;">Explore premium content and tools</li>
+                  <li style="margin-bottom: 10px;">Join our community and start learning!</li>
+                </ol>
+              </div>
+              
+              <!-- CTA Button -->
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${frontendUrl}/login" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px 40px; text-decoration: none; border-radius: 25px; font-weight: bold; display: inline-block; font-size: 16px;">
+                  Access Your Dashboard
+                </a>
+              </div>
+              
+              <!-- Support Section -->
+              <div style="background: #f8f9fa; padding: 20px; border-radius: 5px; margin-top: 30px; text-align: center;">
+                <p style="margin: 0 0 10px 0; color: #666; font-size: 14px;">Need help? We're here for you!</p>
+                <p style="margin: 0; color: #666; font-size: 14px;">
+                  Contact our support team at <a href="mailto:support@eagleinvestors.com" style="color: #667eea; text-decoration: none;">support@eagleinvestors.com</a>
+                </p>
+              </div>
+            </div>
+            
+            <!-- Footer -->
+            <div style="background: #f8f9fa; padding: 20px; text-align: center; border-top: 1px solid #ddd;">
+              <p style="margin: 0 0 10px 0; font-size: 12px; color: #999;">
+                This email was sent to ${email}
+              </p>
+              <p style="margin: 0; font-size: 12px; color: #999;">
+                © ${new Date().getFullYear()} Eagle Investors. All rights reserved.
+              </p>
+            </div>
+          </div>
+        </body>
+      </html>
+    `;
+
+    const textContent = `
+      Welcome to Eagle Investors!
+      
+      Hello ${name},
+      
+      Thank you for subscribing to ${planName}! Your payment has been processed successfully.
+      
+      ${isNewAccount ? `
+      YOUR ACCOUNT CREDENTIALS:
+      Email: ${email}
+      Temporary Password: ${tempPassword}
+      
+      IMPORTANT: Please change your password after your first login.
+      ` : ''}
+      
+      SUBSCRIPTION DETAILS:
+      - Plan: ${planName}
+      - Billing Cycle: ${subscriptionType}
+      - Amount Paid: $${amount.toFixed(2)}
+      - Duration: ${duration || `${durationInDays} days`}
+      - Start Date: ${formattedStartDate}
+      - End Date: ${formattedEndDate}
+      - Transaction ID: ${transactionId}
+      - Contract ID: ${contractId}
+      
+      Access your dashboard: ${frontendUrl}/login
+      
+      If you need assistance, contact us at support@eagleinvestors.com
+      
+      © ${new Date().getFullYear()} Eagle Investors
+    `;
+
+    return await sendEmail(email, subject, htmlContent, textContent);
+  } catch (error) {
+    console.error("❌ Error sending subscription confirmation email:", error);
+    return { success: false, error: error.message };
   }
 };
 
@@ -194,4 +429,5 @@ module.exports = {
   sendAccountActivationEmail,
   sendWelcomeEmail,
   sendContractConfirmationEmail,
+  sendSubscriptionConfirmationEmail,
 };

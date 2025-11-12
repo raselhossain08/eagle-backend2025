@@ -3,6 +3,12 @@ const createError = require("http-errors");
 const { protect } = require("../middlewares/auth.middleware");
 
 const router = express.Router();
+/**
+ * @swagger
+ * tags:
+ *   - name: Functions
+ *     description: Functions API endpoints
+ */
 
 // Function registry - store your functions here
 const functionRegistry = {

@@ -1,5 +1,11 @@
 const express = require('express');
 const router = express.Router();
+/**
+ * @swagger
+ * tags:
+ *   - name: Webhooks
+ *     description: Webhooks API endpoints
+ */
 const {
     getAllWebhooks,
     getWebhook,

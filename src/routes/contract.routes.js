@@ -29,6 +29,13 @@ const { protect, optionalAuth } = require("../middlewares/auth.middleware");
 
 const router = express.Router();
 
+/**
+ * @swagger
+ * tags:
+ *   - name: Contracts (Legacy)
+ *     description: Legacy contract endpoints - see Contracts tag for primary routes
+ */
+
 // Public routes (no authentication required)
 // @route   POST /api/contracts/get-by-contact
 // @desc    Get contracts by contact info (fullName, email, phone)

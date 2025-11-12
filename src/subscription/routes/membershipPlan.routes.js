@@ -8,6 +8,13 @@ const router = express.Router();
 const { body, param, query } = require('express-validator');
 const { protect, restrictTo } = require('../../middlewares/auth.middleware');
 
+/**
+ * @swagger
+ * tags:
+ *   - name: Membership Plans
+ *     description: Membership plan management
+ */
+
 // Import controllers (we'll use existing plan controllers)
 // Import from plans module
 const {
@@ -81,27 +88,49 @@ const validatePlanId = [
 ];
 
 /**
- * @route   GET /api/v1/subscriptions/plans
- * @desc    Get all membership plans
- * @access  Public
- * @query   status, features, pricing
+ * @swagger
+ * /api/v1/subscriptions/plans:
+ *   get:
+ *     summary: Get all membership plans
+ *     tags: [Membership Plans]
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: features
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: List of plans
+ *   post:
+ *     summary: Create new membership plan (Admin)
+ *     tags: [Membership Plans]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *               description:
+ *                 type: string
+ *               pricing:
+ *                 type: object
+ *               features:
+ *                 type: array
+ *     responses:
+ *       201:
+ *         description: Plan created
  */
 router.get('/', getPlans);
 
-/**
- * @route   GET /api/v1/subscriptions/plans/:id
- * @desc    Get single membership plan
- * @access  Public
- * @params  id - plan ID
- */
-router.get('/:id', validatePlanId, getPlanById);
-
-/**
- * @route   POST /api/v1/subscriptions/plans
- * @desc    Create new membership plan
- * @access  Admin only
- * @body    { name, description, pricing, features, status }
- */
 router.post('/',
     protect,
     restrictTo('admin', 'superAdmin'),
@@ -110,12 +139,51 @@ router.post('/',
 );
 
 /**
- * @route   PUT /api/v1/subscriptions/plans/:id
- * @desc    Update membership plan
- * @access  Admin only
- * @params  id - plan ID
- * @body    { name?, description?, pricing?, features?, status? }
+ * @swagger
+ * /api/v1/subscriptions/plans/{id}:
+ *   get:
+ *     summary: Get single membership plan
+ *     tags: [Membership Plans]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Plan details
+ *   put:
+ *     summary: Update membership plan (Admin)
+ *     tags: [Membership Plans]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Plan updated
+ *   delete:
+ *     summary: Delete membership plan (Admin)
+ *     tags: [Membership Plans]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Plan deleted
  */
+router.get('/:id', validatePlanId, getPlanById);
+
 router.put('/:id',
     protect,
     restrictTo('admin', 'superAdmin'),
@@ -124,12 +192,6 @@ router.put('/:id',
     updatePlan
 );
 
-/**
- * @route   DELETE /api/v1/subscriptions/plans/:id
- * @desc    Delete membership plan (soft delete)
- * @access  Admin only
- * @params  id - plan ID
- */
 router.delete('/:id',
     protect,
     restrictTo('admin', 'superAdmin'),
@@ -138,9 +200,14 @@ router.delete('/:id',
 );
 
 /**
- * @route   GET /api/v1/subscriptions/plans/featured/list
- * @desc    Get featured membership plans
- * @access  Public
+ * @swagger
+ * /api/v1/subscriptions/plans/featured/list:
+ *   get:
+ *     summary: Get featured membership plans
+ *     tags: [Membership Plans]
+ *     responses:
+ *       200:
+ *         description: Featured plans
  */
 router.get('/featured/list', async (req, res) => {
     try {

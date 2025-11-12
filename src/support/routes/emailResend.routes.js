@@ -5,6 +5,12 @@
 
 const express = require('express');
 const router = express.Router();
+/**
+ * @swagger
+ * tags:
+ *   - name: Email Resend
+ *     description: Email Resend API endpoints
+ */
 
 // Controllers
 const emailResendController = require('../controllers/emailResend.controller');

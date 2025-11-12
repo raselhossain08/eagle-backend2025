@@ -2,6 +2,13 @@ const express = require('express');
 const router = express.Router();
 const { body, param, query } = require('express-validator');
 
+/**
+ * @swagger
+ * tags:
+ *   - name: Support
+ *     description: Support ticket and saved reply management
+ */
+
 // Import controllers
 const supportController = require('../controllers/support.controller');
 const savedReplyController = require('../controllers/savedReply.controller');
@@ -16,7 +23,7 @@ const auth = protect; // Alias for backward compatibility
 // =============================================================================
 
 // Get all support tickets (with filtering, search, pagination)
-router.get('/tickets', 
+router.get('/tickets',
   auth,
   [
     query('page').optional().isInt({ min: 1 }),
@@ -32,7 +39,7 @@ router.get('/tickets',
 );
 
 // Get support statistics
-router.get('/tickets/stats', 
+router.get('/tickets/stats',
   auth,
   supportController.getSupportStats
 );
@@ -418,8 +425,8 @@ router.get('/dashboard',
   async (req, res) => {
     try {
       const [supportStats, replyStats] = await Promise.all([
-        supportController.getSupportStats(req, res, () => {}),
-        savedReplyController.getReplyStats(req, res, () => {})
+        supportController.getSupportStats(req, res, () => { }),
+        savedReplyController.getReplyStats(req, res, () => { })
       ]);
 
       // This is a simplified version - in practice you'd want to create a dedicated service

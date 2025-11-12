@@ -1,5 +1,11 @@
 const express = require('express');
 const router = express.Router();
+/**
+ * @swagger
+ * tags:
+ *   - name: Payment Gateways
+ *     description: Payment Gateways API endpoints
+ */
 const PaymentGatewayController = require('../controllers/paymentGateway.controller');
 const authMiddleware = require('../middlewares/auth.middleware');
 const RBACMiddleware = require('../middlewares/rbac.middleware');

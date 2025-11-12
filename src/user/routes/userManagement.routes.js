@@ -1,5 +1,11 @@
 const express = require('express');
 const router = express.Router();
+/**
+ * @swagger
+ * tags:
+ *   - name: User Management
+ *     description: User Management API endpoints
+ */
 const {
     getUsers,
     getUserStats,

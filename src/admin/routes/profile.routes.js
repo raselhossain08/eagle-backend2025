@@ -1,5 +1,11 @@
 const express = require('express');
 const router = express.Router();
+/**
+ * @swagger
+ * tags:
+ *   - name: Admin Profile
+ *     description: Admin Profile API endpoints
+ */
 const ProfileController = require('../controllers/profile.controller');
 const AdminAuthMiddleware = require('../middlewares/auth.middleware');
 const multer = require('multer');

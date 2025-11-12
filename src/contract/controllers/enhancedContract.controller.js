@@ -15,11 +15,16 @@ const EvidenceComplianceService = require('../services/evidenceCompliance.servic
 
 /**
  * @desc    Get all contract templates
- * @route   GET /api/contracts/templates
- * @access  Protected
+ * @route   GET /api/contracts/templates (Protected)
+ * @route   GET /api/contracts/templates/public (Public)
+ * @access  Protected or Public
  */
 const getContractTemplates = async (req, res) => {
   try {
+    console.log('🎯 [getContractTemplates] Controller called!');
+    console.log('🔍 [getContractTemplates] Request path:', req.path);
+    console.log('🔍 [getContractTemplates] Has user?:', !!req.user);
+
     const {
       page = 1,
       limit = 20,
@@ -28,16 +33,34 @@ const getContractTemplates = async (req, res) => {
       applicableRegions,
       language,
       search,
+      category,
+      status,
       sortBy = 'audit.lastModifiedAt',
       sortOrder = 'desc'
     } = req.query;
 
+    // Check if this is a public request (no user authentication)
+    const isPublicRequest = !req.user;
+
+    console.log('✅ [getContractTemplates] Is public request?:', isPublicRequest);
+
     const filters = {};
-    if (isActive !== undefined) filters.isActive = isActive === 'true';
+
+    // For public requests, only return active and published templates
+    if (isPublicRequest) {
+      filters.isActive = true;
+      filters.status = 'active';
+    } else {
+      // For authenticated requests, allow filtering
+      if (isActive !== undefined) filters.isActive = isActive === 'true';
+      if (status) filters.status = status;
+    }
+
     if (applicablePlans) filters.applicablePlans = applicablePlans.split(',');
     if (applicableRegions) filters.applicableRegions = applicableRegions.split(',');
     if (language) filters.language = language;
     if (search) filters.search = search;
+    if (category) filters.category = category;
 
     const options = { page: parseInt(page), limit: parseInt(limit), sortBy, sortOrder };
 
@@ -45,6 +68,7 @@ const getContractTemplates = async (req, res) => {
 
     res.json({
       success: true,
+      message: isPublicRequest ? 'Public templates retrieved successfully' : 'Templates retrieved successfully',
       data: result.templates,
       pagination: result.pagination
     });
@@ -60,22 +84,39 @@ const getContractTemplates = async (req, res) => {
 
 /**
  * @desc    Get contract template by ID
- * @route   GET /api/contracts/templates/:templateId
- * @access  Protected
+ * @route   GET /api/contracts/templates/:templateId (Protected)
+ * @route   GET /api/contracts/templates/public/:templateId (Public)
+ * @access  Protected or Public
  */
 const getContractTemplate = async (req, res) => {
   try {
     const { templateId } = req.params;
     const { language = 'en', includeInactive = false } = req.query;
 
+    // Check if this is a public request (no user authentication)
+    const isPublicRequest = !req.user;
+
+    // For public requests, never include inactive templates
+    const shouldIncludeInactive = isPublicRequest ? false : includeInactive === 'true';
+
     const template = await ContractTemplateService.getTemplate(
       templateId,
-      language,
-      includeInactive === 'true'
+      shouldIncludeInactive
     );
+
+    // For public requests, ensure template is active and published
+    if (isPublicRequest) {
+      if (!template.isActive || template.status !== 'active') {
+        return res.status(404).json({
+          success: false,
+          message: 'Template not found or not available'
+        });
+      }
+    }
 
     res.json({
       success: true,
+      message: isPublicRequest ? 'Public template retrieved successfully' : 'Template retrieved successfully',
       data: template
     });
   } catch (error) {

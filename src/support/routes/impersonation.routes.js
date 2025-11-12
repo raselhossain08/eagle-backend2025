@@ -5,6 +5,12 @@
 
 const express = require('express');
 const router = express.Router();
+/**
+ * @swagger
+ * tags:
+ *   - name: User Impersonation
+ *     description: User Impersonation API endpoints
+ */
 
 // Controllers
 const impersonationController = require('../controllers/impersonation.controller');

@@ -5,6 +5,12 @@
 
 const express = require('express');
 const router = express.Router();
+/**
+ * @swagger
+ * tags:
+ *   - name: WordPress Subscription Migration
+ *     description: WordPress Subscription Migration API endpoints
+ */
 const { body } = require('express-validator');
 const wpSubscriptionMigrationController = require('../controllers/wpSubscriptionMigration.controller');
 const { protect, restrictTo } = require('../../middlewares/auth.middleware');

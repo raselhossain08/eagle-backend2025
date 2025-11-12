@@ -16,6 +16,8 @@ const compression = require("compression");
 const mongoSanitize = require("express-mongo-sanitize");
 const cookieParser = require("cookie-parser");
 const path = require("path");
+const swaggerJsDoc = require("swagger-jsdoc");
+const swaggerUi = require("swagger-ui-express");
 const connectDB = require("./config/db");
 const authRoutes = require("./routes/auth.routes");
 const userRoutes = require("./routes/user.routes");
@@ -167,6 +169,138 @@ app.use(compression());
 // Rate limiter removed - not needed
 
 // -----------------------------
+// Swagger Configuration
+// -----------------------------
+const swaggerOptions = {
+  definition: {
+    openapi: "3.0.0",
+    info: {
+      title: "Eagle Backend API",
+      version: "1.0.0",
+      description: "Comprehensive API documentation for Eagle Backend - Subscription Management System",
+      contact: {
+        name: "Eagle Backend Support",
+        email: "support@eagle.com"
+      },
+      license: {
+        name: "MIT",
+        url: "https://opensource.org/licenses/MIT"
+      }
+    },
+    servers: [
+      {
+        url: "http://localhost:5000",
+        description: "Development server"
+      },
+      {
+        url: "https://eagle-backend2025.vercel.app",
+        description: "Production server"
+      }
+    ],
+    components: {
+      securitySchemes: {
+        bearerAuth: {
+          type: "http",
+          scheme: "bearer",
+          bearerFormat: "JWT",
+          description: "Enter your JWT token"
+        },
+        cookieAuth: {
+          type: "apiKey",
+          in: "cookie",
+          name: "token",
+          description: "JWT token stored in cookie"
+        }
+      }
+    },
+    security: [
+      {
+        bearerAuth: []
+      },
+      {
+        cookieAuth: []
+      }
+    ]
+  },
+  apis: [
+    // Main routes directory
+    "./src/routes/*.js",
+
+    // Auth module
+    "./src/auth/routes/*.js",
+
+    // User module
+    "./src/user/routes/*.js",
+    "./src/user/controllers/*.js",
+
+    // Admin module
+    "./src/admin/routes/*.js",
+    "./src/admin/controllers/*.js",
+
+    // RBAC module
+    "./src/rbac/routes/*.js",
+
+    // Subscription module
+    "./src/subscription/routes/*.js",
+    "./src/subscription/controllers/*.js",
+
+    // Payment module
+    "./src/payment/routes/*.js",
+    "./src/payment/controllers/*.js",
+
+    // Plans module
+    "./src/plans/routes/*.js",
+    "./src/plans/controllers/*.js",
+
+    // Transaction module
+    "./src/transaction/routes/*.js",
+    "./src/transaction/controllers/*.js",
+
+    // Analytics module
+    "./src/analytics/routes/*.js",
+    "./src/analytics/controllers/*.js",
+
+    // Support module
+    "./src/support/routes/*.js",
+    "./src/support/controllers/*.js",
+
+    // Dashboard module
+    "./src/dashboard/routes/*.js",
+    "./src/dashboard/controllers/*.js",
+
+    // Integrations module
+    "./src/integrations/routes/*.js",
+    "./src/integrations/controllers/*.js",
+
+    // WordPress integration
+    "./src/wordpress/routes/*.js",
+    "./src/wordpress/controllers/*.js",
+
+    // Contract module
+    "./src/contract/routes/*.js",
+    "./src/contract/controllers/*.js",
+
+    // Controllers (for standalone @swagger annotations)
+    "./src/controllers/*.js"
+  ]
+};
+
+const swaggerDocs = swaggerJsDoc(swaggerOptions);
+
+// Swagger UI Route - Must be before other routes to avoid conflicts
+app.use("/api-docs", swaggerUi.serve, swaggerUi.setup(swaggerDocs, {
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: "Eagle Backend API Docs",
+  swaggerOptions: {
+    persistAuthorization: true,
+    displayRequestDuration: true,
+    filter: true,
+    showExtensions: true,
+    showCommonExtensions: true
+  }
+}));
+
+// -----------------------------
 // Static Files Serving
 // -----------------------------
 app.use("/uploads", express.static(path.join(__dirname, "../uploads")));
@@ -179,6 +313,11 @@ app.get("/", (req, res) => {
   res.sendFile(path.join(__dirname, "../public/index.html"));
 });
 
+// API Documentation redirect
+app.get("/docs", (req, res) => {
+  res.redirect("/api-docs");
+});
+
 // -----------------------------
 // Routes (Keep all your existing routes)
 // -----------------------------
@@ -189,9 +328,9 @@ app.use("/api/subscription", subscriptionManagementRoutes);
 app.use("/api/subscriptions-legacy", subscriptionRoutes);
 app.use("/api/payment", paymentRoutes);
 app.use("/api/paypal", paypalRoutes);
-app.use("/api/contracts", contractRoutes);
+app.use("/api/contracts", contractRoutes); // This already includes enhanced routes
 app.use("/api/contract-templates", contractTemplatesRoutes);
-app.use("/api/contracts/enhanced", enhancedContractRoutes);
+// Removed duplicate: app.use("/api/contracts/enhanced", enhancedContractRoutes);
 app.use("/api/package", packageRoutes);
 app.use("/api/basics", basicRoutes);
 app.use("/api/functions", functionRoutes);
@@ -252,6 +391,10 @@ app.get("/api/health", async (req, res) => {
     timestamp: new Date().toISOString(),
     environment: config.NODE_ENV,
     origin: req.headers.origin || "No origin header",
+    apiDocs: {
+      swagger: "http://localhost:5000/api-docs",
+      alternativeUrl: "http://localhost:5000/docs"
+    },
     database: {
       status: dbStatus,
       error: dbError,

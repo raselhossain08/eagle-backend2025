@@ -255,14 +255,14 @@ const storeSignedContract = async (req, res) => {
       productType,
       existingContract: existingContract
         ? {
-            id: existingContract._id,
-            status: existingContract.status,
-            subscriptionEndDate: existingContract.subscriptionEndDate,
-            hasScheduledDowngrade:
-              !!existingContract.scheduledDowngrade?.status,
-            scheduledDowngradeStatus:
-              existingContract.scheduledDowngrade?.status,
-          }
+          id: existingContract._id,
+          status: existingContract.status,
+          subscriptionEndDate: existingContract.subscriptionEndDate,
+          hasScheduledDowngrade:
+            !!existingContract.scheduledDowngrade?.status,
+          scheduledDowngradeStatus:
+            existingContract.scheduledDowngrade?.status,
+        }
         : null,
     });
 
@@ -425,9 +425,9 @@ const storeSignedContract = async (req, res) => {
 // @access  Protected
 const updatePaymentStatus = async (req, res) => {
   try {
-    const { contractId } = req.params;
+    const { id: contractId } = req.params; // Support both :id and :contractId params
     const { paymentId, paymentProvider, status } = req.body;
-    const userId = req.user.id;
+    const userId = req.user?.id; // Make userId optional for guest users
 
     // Validate status
     const validStatuses = ["payment_pending", "completed", "cancelled"];
@@ -438,9 +438,15 @@ const updatePaymentStatus = async (req, res) => {
       });
     }
 
+    // Build query - if userId is available, use it for additional security
+    const query = { _id: contractId };
+    if (userId) {
+      query.userId = userId;
+    }
+
     // Find and update contract
     const contract = await SignedContract.findOneAndUpdate(
-      { _id: contractId, userId },
+      query,
       {
         status,
         paymentId,
@@ -456,7 +462,7 @@ const updatePaymentStatus = async (req, res) => {
       });
     }
 
-    // If payment completed, update user subscription
+    // If payment completed, update user subscription and send confirmation email
     if (status === "completed") {
       const subscriptionMap = {
         basic: "Basic",
@@ -469,10 +475,106 @@ const updatePaymentStatus = async (req, res) => {
       };
 
       const newSubscription = subscriptionMap[contract.productType];
-      if (newSubscription) {
-        await User.findByIdAndUpdate(userId, {
+
+      // Find user to get their details
+      const user = await User.findById(contract.userId);
+
+      if (newSubscription && user) {
+        // Calculate subscription duration based on billing cycle
+        const billingCycleMap = {
+          monthly: 30,
+          quarterly: 90,
+          yearly: 365,
+          lifetime: 36500 // 100 years for lifetime
+        };
+
+        const billingCycle = contract.subscriptionType || 'monthly';
+        const durationDays = billingCycleMap[billingCycle] || 30;
+
+        const startDate = new Date();
+        const endDate = new Date();
+        endDate.setDate(endDate.getDate() + durationDays);
+
+        // Update user subscription with dates
+        await User.findByIdAndUpdate(contract.userId, {
           subscription: newSubscription,
+          subscriptionStatus: 'active',
+          subscriptionStartDate: startDate,
+          subscriptionEndDate: endDate,
+          billingCycle: billingCycle,
+          nextBillingDate: endDate,
+          lastBillingDate: startDate,
         });
+
+        // Send subscription confirmation email with invoice details
+        try {
+          const { sendSubscriptionConfirmationEmail } = require('../services/emailService');
+          const frontendUrl = process.env.FRONTEND_URL || process.env.APP_URL || 'https://eagleinvest.us';
+
+          // Get plan name mapping with detailed names
+          const planNameMap = {
+            'Basic': 'Basic Plan',
+            'Script': 'Script Package',
+            'Diamond': 'Diamond Mentorship',
+            'Infinity': 'Infinity Package',
+            'basic-subscription': 'Basic Plan',
+            'diamond-subscription': 'Diamond Mentorship',
+            'infinity-subscription': 'Infinity Package',
+            'eagle-ultimate': 'Eagle Ultimate Package',
+            'investment-advising': 'Investment Advising',
+            'trading-tutor': 'Trading Tutor',
+            'mentorship-package': 'Mentorship Package',
+          };
+
+          // Duration text mapping with fallback
+          const durationTextMap = {
+            monthly: '1 Month (30 days)',
+            quarterly: '3 Months (90 days)',
+            yearly: '1 Year (365 days)',
+            lifetime: 'Lifetime Access'
+          };
+
+          // Check if user has a temporary password (newly created guest user)
+          const isNewAccount = user.isPendingUser || false;
+          const tempPassword = user.tempPassword || 'Please check your activation email';
+
+          // Get readable plan name from contract or mapping
+          const planName = contract.productName
+            || planNameMap[contract.productType]
+            || planNameMap[newSubscription]
+            || newSubscription;
+
+          console.log('📧 Sending invoice/confirmation email with details:', {
+            email: user.email,
+            planName,
+            duration: durationTextMap[billingCycle],
+            amount: contract.amount,
+            billingCycle,
+            isNewAccount
+          });
+
+          await sendSubscriptionConfirmationEmail({
+            email: user.email,
+            name: user.firstName ? `${user.firstName} ${user.lastName}` : user.name || user.email,
+            tempPassword: tempPassword,
+            planName: planName,
+            subscriptionType: billingCycle,
+            amount: parseFloat(contract.amount) || 0,
+            startDate: startDate,
+            endDate: endDate,
+            duration: durationTextMap[billingCycle] || `${durationDays} days`,
+            transactionId: paymentId || 'N/A',
+            contractId: contract._id.toString(),
+            frontendUrl: frontendUrl,
+            isNewAccount: isNewAccount
+          });
+
+          console.log('✅ Invoice/confirmation email sent successfully to:', user.email);
+        } catch (emailError) {
+          console.error('⚠️ Failed to send invoice/confirmation email:', emailError.message);
+          // Don't fail the request if email fails - but log the error
+          console.error('Email error details:', emailError);
+        }
       }
     }
 
@@ -526,7 +628,7 @@ const getUserContracts = async (req, res) => {
             },
             email: {
               required: true,
-              label: "Email Address", 
+              label: "Email Address",
               placeholder: "Enter your email address"
             },
             phone: {
@@ -611,12 +713,12 @@ const generateContractPDF = async (req, res) => {
 
     // Validate package type
     const validPackageTypes = [
-      "basic", "diamond", "infinity", "script", "investment-advising", 
-      "trading-tutor", "ultimate", "basic-subscription", "diamond-subscription", 
-      "infinity-subscription", "mentorship-package", "product-purchase", 
+      "basic", "diamond", "infinity", "script", "investment-advising",
+      "trading-tutor", "ultimate", "basic-subscription", "diamond-subscription",
+      "infinity-subscription", "mentorship-package", "product-purchase",
       "eagle-ultimate", "trading-tutoring"
     ];
-    
+
     if (!validPackageTypes.includes(packageType)) {
       return res.status(400).json({
         success: false,
@@ -774,8 +876,8 @@ const getContractsByContact = async (req, res) => {
     res.json({
       success: true,
       data: contracts,
-      message: contracts.length > 0 
-        ? `Found ${contracts.length} contract(s)` 
+      message: contracts.length > 0
+        ? `Found ${contracts.length} contract(s)`
         : "No contracts found for the provided contact information",
     });
   } catch (error) {
@@ -945,16 +1047,19 @@ const createContractWithContact = async (req, res) => {
 
     if (!existingUser) {
       console.log("👤 User doesn't exist, creating pending user account...");
-      
-      // Generate activation token
+
+      // Generate activation token and temporary password
       const activationToken = crypto.randomBytes(32).toString('hex');
       const activationTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
+      // Generate a secure temporary password
+      const tempPassword = crypto.randomBytes(8).toString('hex'); // 16 character password
 
       // Create pending user
       const nameParts = fullName.trim().split(' ');
       const firstName = nameParts[0] || fullName;
       const lastName = nameParts.slice(1).join(' ') || 'User';
-      
+
       const pendingUserData = {
         firstName,
         lastName,
@@ -965,6 +1070,7 @@ const createContractWithContact = async (req, res) => {
         isEmailVerified: false,
         activationToken,
         activationTokenExpiry,
+        tempPassword: tempPassword, // Store temporary password for email
         // Store address information in user profile
         address: sanitizedAddress,
         discordUsername: discordUsername ? discordUsername.trim() : null,
@@ -992,10 +1098,16 @@ const createContractWithContact = async (req, res) => {
       }
     } else if (existingUser.isPendingUser) {
       console.log("👤 User exists as pending user, updating activation token...");
-      
+
       // Update activation token for existing pending user
       existingUser.activationToken = crypto.randomBytes(32).toString('hex');
       existingUser.activationTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+      // Generate new temporary password if not exists
+      if (!existingUser.tempPassword) {
+        existingUser.tempPassword = crypto.randomBytes(8).toString('hex');
+      }
+
       await existingUser.save();
       userCreationStatus = 'updated_pending';
 
@@ -1011,7 +1123,7 @@ const createContractWithContact = async (req, res) => {
     } else {
       console.log("👤 User already exists and is active");
       userCreationStatus = 'already_exists';
-      
+
       // Send welcome back email for existing users
       try {
         await emailService.sendWelcomeEmail(
@@ -1041,6 +1153,8 @@ const createContractWithContact = async (req, res) => {
       discordUsername: discordUsername ? discordUsername.trim() : null,
       signature,
       productType,
+      productName: contractDataForStorage.productName || contractTitle, // Add product name for invoices
+      amount: parseFloat(contractDataForStorage.price) || subscriptionPrice, // Add amount for invoices
       contractTitle,
       ipAddress,
       userAgent,
@@ -1075,7 +1189,7 @@ const createContractWithContact = async (req, res) => {
 
     // Send appropriate success message based on user status
     let successMessage = "Contract created successfully";
-    
+
     if (userCreationStatus === 'created_pending') {
       successMessage += ". We've created an account for you and sent an activation email. Please check your email to set your password and activate your account.";
     } else if (userCreationStatus === 'updated_pending') {
@@ -1158,8 +1272,8 @@ const getPublicUserContracts = async (req, res) => {
     }
 
     // Find contracts by email (both guest and authenticated user contracts)
-    const contracts = await SignedContract.find({ 
-      email: email.toLowerCase().trim() 
+    const contracts = await SignedContract.find({
+      email: email.toLowerCase().trim()
     })
       .sort({ createdAt: -1 })
       .select("-userAgent -ipAddress");
@@ -1169,8 +1283,8 @@ const getPublicUserContracts = async (req, res) => {
     res.json({
       success: true,
       data: contracts,
-      message: contracts.length > 0 
-        ? `Found ${contracts.length} contract(s)` 
+      message: contracts.length > 0
+        ? `Found ${contracts.length} contract(s)`
         : "No contracts found for this email",
     });
   } catch (error) {
@@ -1203,7 +1317,7 @@ const getGuestContracts = async (req, res) => {
     }
 
     // Find contracts by email and name
-    const contracts = await SignedContract.find({ 
+    const contracts = await SignedContract.find({
       email: email.toLowerCase().trim(),
       name: { $regex: new RegExp(name.trim(), 'i') } // Case-insensitive name match
     })
@@ -1221,8 +1335,8 @@ const getGuestContracts = async (req, res) => {
       guestId: guestId,
       isAuthenticated: false,
       guestMode: true,
-      message: contracts.length > 0 
-        ? `Found ${contracts.length} contract(s) for ${name}` 
+      message: contracts.length > 0
+        ? `Found ${contracts.length} contract(s) for ${name}`
         : `No contracts found for ${name} (${email})`,
     });
   } catch (error) {

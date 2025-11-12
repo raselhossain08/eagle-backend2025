@@ -1,5 +1,11 @@
 const express = require('express');
 const router = express.Router();
+/**
+ * @swagger
+ * tags:
+ *   - name: Payment Settings
+ *     description: Payment Settings API endpoints
+ */
 const paymentSettingsController = require('../controllers/paymentSettingsController');
 const { protect, restrictTo, adminOnly } = require('../middlewares/auth.middleware');
 

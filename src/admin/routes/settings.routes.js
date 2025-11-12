@@ -1,5 +1,11 @@
 const express = require('express');
 const router = express.Router();
+/**
+ * @swagger
+ * tags:
+ *   - name: Settings
+ *     description: Settings API endpoints
+ */
 const SettingsController = require('../controllers/settings.controller');
 const AdminAuthMiddleware = require('../middlewares/auth.middleware');
 

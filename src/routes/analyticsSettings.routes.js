@@ -1,5 +1,11 @@
 const express = require('express');
 const router = express.Router();
+/**
+ * @swagger
+ * tags:
+ *   - name: Analytics Settings
+ *     description: Analytics Settings API endpoints
+ */
 const analyticsSettingsController = require('../controllers/analyticsSettingsController');
 const { protect, adminOnly } = require('../middlewares/auth.middleware');
 

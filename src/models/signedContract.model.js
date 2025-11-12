@@ -73,6 +73,14 @@ const signedContractSchema = new mongoose.Schema(
         "trading-tutoring",
       ],
     },
+    productName: {
+      type: String,
+      required: false, // Human-readable product name for invoices
+    },
+    amount: {
+      type: Number,
+      required: false, // Total amount paid for invoice
+    },
     // PDF storage information (optional - frontend may handle PDF generation)
     pdfPath: {
       type: String,

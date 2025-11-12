@@ -5,6 +5,115 @@ const transactionService = require('../services/transaction.service');
  */
 
 /**
+ * Create a new transaction
+ * POST /api/transactions
+ * Supports both authenticated and guest users
+ */
+exports.createTransaction = async (req, res) => {
+    try {
+        console.log('💳 createTransaction called');
+        console.log('👤 User:', req.user?.email || 'Guest');
+        console.log('📦 Request body:', req.body);
+
+        // Transform frontend data to match Transaction model schema
+        const requestData = req.body;
+
+        // Determine payment method type from PSP provider or metadata
+        let paymentMethodType = 'other';
+        if (requestData.psp?.provider === 'paypal') {
+            paymentMethodType = 'paypal';
+        } else if (requestData.psp?.provider === 'stripe') {
+            paymentMethodType = 'card'; // Default to card for Stripe
+        } else if (requestData.metadata?.paymentMethod === 'paypal') {
+            paymentMethodType = 'paypal';
+        } else if (requestData.metadata?.paymentMethod === 'stripe') {
+            paymentMethodType = 'card';
+        }
+
+        // Calculate amount structure (convert to cents if needed)
+        const amountValue = typeof requestData.amount === 'number'
+            ? requestData.amount
+            : parseFloat(requestData.amount) || 0;
+
+        const grossAmount = Math.round(amountValue * 100); // Convert to cents
+        const discountAmount = requestData.metadata?.discountAmount
+            ? Math.round(parseFloat(requestData.metadata.discountAmount) * 100)
+            : 0;
+        const netAmount = grossAmount - discountAmount;
+
+        // Normalize status (frontend sends "completed", model expects "succeeded")
+        const normalizedStatus = requestData.status === 'completed'
+            ? 'succeeded'
+            : requestData.status || 'pending';
+
+        const transactionData = {
+            userId: req.user?.id || null, // Use authenticated user's ID or null for guest
+            type: requestData.type || 'charge',
+            status: normalizedStatus,
+
+            // Amount structure (required)
+            amount: {
+                gross: grossAmount,
+                net: netAmount,
+                fee: 0,
+                tax: 0,
+                discount: discountAmount,
+            },
+
+            currency: requestData.currency || 'USD',
+            description: requestData.description || 'Transaction',
+
+            // Payment method (required)
+            paymentMethod: {
+                type: paymentMethodType,
+                ...(paymentMethodType === 'paypal' && requestData.billingDetails?.email && {
+                    digital: {
+                        email: requestData.billingDetails.email,
+                    }
+                }),
+            },
+
+            // PSP details (required)
+            psp: {
+                provider: requestData.psp?.provider || 'other',
+                reference: requestData.psp?.reference || {},
+            },
+
+            // Optional fields
+            ...(requestData.subscriptionId && { subscriptionId: requestData.subscriptionId }),
+            ...(requestData.invoiceId && { invoiceId: requestData.invoiceId }),
+            ...(requestData.orderId && { orderId: requestData.orderId }),
+            ...(requestData.billingDetails && { billingDetails: requestData.billingDetails }),
+            ...(requestData.metadata && { metadata: requestData.metadata }),
+        };
+
+        console.log('🔄 Transformed transaction data:', {
+            ...transactionData,
+            amount: transactionData.amount,
+            status: transactionData.status,
+            paymentMethod: transactionData.paymentMethod.type,
+        });
+
+        const result = await transactionService.createTransaction(transactionData);
+
+        console.log('✅ Transaction created:', result.transaction.transactionId);
+
+        res.status(201).json({
+            success: true,
+            transaction: result.transaction,
+            message: 'Transaction created successfully',
+        });
+    } catch (error) {
+        console.error('❌ Error creating transaction:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to create transaction',
+            error: error.message,
+        });
+    }
+};
+
+/**
  * Get user's transaction history
  * GET /api/transactions
  * NOTE: Modified to show all transactions for dashboard purposes

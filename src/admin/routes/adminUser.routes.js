@@ -1,5 +1,11 @@
 const express = require('express');
 const router = express.Router();
+/**
+ * @swagger
+ * tags:
+ *   - name: Admin Users
+ *     description: Admin Users API endpoints
+ */
 const AdminUserController = require('../controllers/adminUser.controller');
 const AdminAuthMiddleware = require('../middlewares/auth.middleware');
 const RBACMiddleware = require('../middlewares/rbac.middleware');
@@ -11,31 +17,59 @@ router.use(AdminAuthMiddleware.verifyToken);
 router.use(RBACMiddleware.injectUserPermissions);
 
 /**
- * @route   GET /api/admin/users
- * @desc    Get all admin users
- * @access  Private (requires user_management:read permission)
+ * @swagger
+ * /api/admin/users:
+ *   get:
+ *     summary: Get all admin users
+ *     tags: [Admin Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: List of admin users retrieved
  */
-router.get('/', 
+router.get('/',
   RBACMiddleware.checkPermission('user_management', 'read'),
   AdminUserController.getAllAdminUsers
 );
 
 /**
- * @route   GET /api/admin/users/statistics
- * @desc    Get admin user statistics
- * @access  Private (requires analytics_reports:read permission)
+ * @swagger
+ * /api/admin/users/statistics:
+ *   get:
+ *     summary: Get admin user statistics
+ *     tags: [Admin Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Admin statistics retrieved
  */
-router.get('/statistics', 
+router.get('/statistics',
   RBACMiddleware.checkPermission('analytics_reports', 'read'),
   AdminUserController.getAdminStatistics
 );
 
 /**
- * @route   GET /api/admin/users/:adminUserId
- * @desc    Get admin user by ID
- * @access  Private (requires user_management:read permission or own profile)
+ * @swagger
+ * /api/admin/users/{adminUserId}:
+ *   get:
+ *     summary: Get admin user by ID
+ *     tags: [Admin Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: adminUserId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Admin user ID
+ *     responses:
+ *       200:
+ *         description: Admin user details retrieved
  */
-router.get('/:adminUserId', 
+router.get('/:adminUserId',
   async (req, res, next) => {
     if (req.user.id === req.params.adminUserId) {
       return next(); // User can view their own profile
@@ -47,21 +81,68 @@ router.get('/:adminUserId',
 );
 
 /**
- * @route   POST /api/admin/users
- * @desc    Create new admin user
- * @access  Private (requires user_management:create permission)
+ * @swagger
+ * /api/admin/users:
+ *   post:
+ *     summary: Create new admin user
+ *     tags: [Admin Users]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - email
+ *               - username
+ *               - password
+ *             properties:
+ *               email:
+ *                 type: string
+ *                 format: email
+ *               username:
+ *                 type: string
+ *               password:
+ *                 type: string
+ *               role:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Admin user created
  */
-router.post('/', 
+router.post('/',
   RBACMiddleware.checkPermission('user_management', 'create'),
   AdminUserController.createAdminUser
 );
 
 /**
- * @route   PUT /api/admin/users/:adminUserId
- * @desc    Update admin user
- * @access  Private (requires user_management:update permission or own profile)
+ * @swagger
+ * /api/admin/users/{adminUserId}:
+ *   put:
+ *     summary: Update admin user
+ *     tags: [Admin Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: adminUserId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Admin user ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *     responses:
+ *       200:
+ *         description: Admin user updated
  */
-router.put('/:adminUserId', 
+router.put('/:adminUserId',
   async (req, res, next) => {
     if (req.user.id === req.params.adminUserId) {
       return next(); // User can update their own profile
@@ -73,21 +154,63 @@ router.put('/:adminUserId',
 );
 
 /**
- * @route   DELETE /api/admin/users/:adminUserId
- * @desc    Delete admin user (soft delete)
- * @access  Private (requires user_management:delete permission)
+ * @swagger
+ * /api/admin/users/{adminUserId}:
+ *   delete:
+ *     summary: Delete admin user (soft delete)
+ *     tags: [Admin Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: adminUserId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Admin user ID
+ *     responses:
+ *       200:
+ *         description: Admin user deleted
  */
-router.delete('/:adminUserId', 
+router.delete('/:adminUserId',
   RBACMiddleware.checkPermission('user_management', 'delete'),
   AdminUserController.deleteAdminUser
 );
 
 /**
- * @route   POST /api/admin/users/:adminUserId/change-password
- * @desc    Change admin user password
- * @access  Private (requires user_management:update permission or own account)
+ * @swagger
+ * /api/admin/users/{adminUserId}/change-password:
+ *   post:
+ *     summary: Change admin user password
+ *     tags: [Admin Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: adminUserId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Admin user ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - currentPassword
+ *               - newPassword
+ *             properties:
+ *               currentPassword:
+ *                 type: string
+ *               newPassword:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Password changed successfully
  */
-router.post('/:adminUserId/change-password', 
+router.post('/:adminUserId/change-password',
   async (req, res, next) => {
     if (req.user.id === req.params.adminUserId) {
       return next(); // User can change their own password
@@ -99,11 +222,25 @@ router.post('/:adminUserId/change-password',
 );
 
 /**
- * @route   POST /api/admin/users/:adminUserId/reset-password
- * @desc    Reset admin user password
- * @access  Private (requires user_management:update permission)
+ * @swagger
+ * /api/admin/users/{adminUserId}/reset-password:
+ *   post:
+ *     summary: Reset admin user password
+ *     tags: [Admin Users]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: adminUserId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Admin user ID
+ *     responses:
+ *       200:
+ *         description: Password reset link sent
  */
-router.post('/:adminUserId/reset-password', 
+router.post('/:adminUserId/reset-password',
   RBACMiddleware.checkPermission('user_management', 'update'),
   AdminUserController.resetPassword
 );

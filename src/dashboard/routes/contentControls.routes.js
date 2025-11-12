@@ -1,5 +1,11 @@
 const express = require('express');
 const router = express.Router();
+/**
+ * @swagger
+ * tags:
+ *   - name: Content Controls
+ *     description: Content Controls API endpoints
+ */
 const ContentControlsController = require('../controllers/contentControls.controller');
 const { protect } = require('../../../middlewares/auth.middleware');
 const rbac = require('../../../middlewares/rbac.middleware');

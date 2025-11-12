@@ -36,7 +36,7 @@ const {
   handleProviderWebhook
 } = require('../controllers/enhancedContract.controller');
 
-const { protect, adminOnly } = require('../../middlewares/auth.middleware');
+const { protect, adminOnly, optionalAuth } = require('../../middlewares/auth.middleware');
 const { authRBAC, requireRole } = require('../../middlewares/rbacAuth.middleware');
 
 const router = express.Router();
@@ -111,6 +111,79 @@ const router = express.Router();
 // =============================================================================
 // PUBLIC ROUTES (No Authentication Required)
 // =============================================================================
+
+/**
+ * @swagger
+ * /api/contracts/enhanced/public/templates:
+ *   get:
+ *     summary: Get all active contract templates (public access - NO TOKEN REQUIRED)
+ *     tags: [Template Management - Public]
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *       - in: query
+ *         name: category
+ *         schema:
+ *           type: string
+ *           enum: [investment_agreement, service_agreement, privacy_policy, terms_of_service, nda, custom, all]
+ *       - in: query
+ *         name: search
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: List of active contract templates
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     $ref: '#/components/schemas/ContractTemplate'
+ *                 pagination:
+ *                   type: object
+ */
+router.get('/public/templates', optionalAuth, (req, res, next) => {
+  console.log('🚀 [PUBLIC Route] /public/templates matched - Token is OPTIONAL!');
+  console.log('   User:', req.user ? `${req.user.email} (authenticated)` : 'Guest (no token)');
+  next();
+}, getContractTemplates);
+
+/**
+ * @swagger
+ * /api/contracts/enhanced/public/templates/{templateId}:
+ *   get:
+ *     summary: Get single contract template by ID (public access - NO TOKEN REQUIRED)
+ *     tags: [Template Management - Public]
+ *     parameters:
+ *       - in: path
+ *         name: templateId
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Contract template details
+ *       404:
+ *         description: Template not found
+ */
+router.get('/public/templates/:templateId', optionalAuth, (req, res, next) => {
+  console.log('🚀 [PUBLIC Route] /public/templates/:templateId matched - Token is OPTIONAL!');
+  console.log('   User:', req.user ? `${req.user.email} (authenticated)` : 'Guest (no token)');
+  next();
+}, getContractTemplate);
 
 /**
  * @swagger
@@ -342,6 +415,158 @@ router.get('/:contractId/verify/:hash', verifyEvidenceIntegrity);
  *         description: Webhook processing failed
  */
 router.post('/webhooks/:provider', handleProviderWebhook);
+
+/**
+ * @swagger
+ * /api/contracts/my-contracts:
+ *   get:
+ *     summary: Get user's signed contracts (Token Optional)
+ *     tags: [User Contracts]
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           default: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 10
+ *     responses:
+ *       200:
+ *         description: List of user contracts (requires authentication) or guest prompt
+ *       401:
+ *         description: Not authenticated - returns guest form
+ */
+const { getUserContracts, createContractWithContact, updatePaymentStatus, storeSignedContract } = require('../../controllers/contract.controller');
+router.get('/my-contracts', optionalAuth, getUserContracts);
+
+/**
+ * @swagger
+ * /api/contracts/create-with-contact:
+ *   post:
+ *     summary: Create contract with contact info (No Token Required)
+ *     tags: [User Contracts]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - fullName
+ *               - email
+ *             properties:
+ *               fullName:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *               phone:
+ *                 type: string
+ *     responses:
+ *       201:
+ *         description: Contract created successfully
+ *       400:
+ *         description: Invalid request data
+ */
+router.post('/create-with-contact', createContractWithContact);
+
+/**
+ * @swagger
+ * /api/contracts/sign:
+ *   post:
+ *     summary: Sign contract (Authenticated Users)
+ *     tags: [User Contracts]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *               - email
+ *               - signature
+ *               - productType
+ *             properties:
+ *               name:
+ *                 type: string
+ *               email:
+ *                 type: string
+ *               phone:
+ *                 type: string
+ *               country:
+ *                 type: string
+ *               streetAddress:
+ *                 type: string
+ *               flatSuiteUnit:
+ *                 type: string
+ *               townCity:
+ *                 type: string
+ *               stateCounty:
+ *                 type: string
+ *               postcodeZip:
+ *                 type: string
+ *               discordUsername:
+ *                 type: string
+ *               signature:
+ *                 type: string
+ *               productType:
+ *                 type: string
+ *               subscriptionType:
+ *                 type: string
+ *                 enum: [monthly, yearly]
+ *     responses:
+ *       201:
+ *         description: Contract signed successfully
+ *       400:
+ *         description: Invalid request data
+ *       401:
+ *         description: Not authenticated
+ */
+router.post('/sign', protect, storeSignedContract);
+
+/**
+ * @swagger
+ * /api/contracts/{id}/payment:
+ *   put:
+ *     summary: Update contract payment status (No Token Required)
+ *     tags: [User Contracts]
+ *     parameters:
+ *       - name: id
+ *         in: path
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Contract ID
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - status
+ *             properties:
+ *               paymentId:
+ *                 type: string
+ *               paymentProvider:
+ *                 type: string
+ *               status:
+ *                 type: string
+ *                 enum: [payment_pending, completed, cancelled]
+ *     responses:
+ *       200:
+ *         description: Payment status updated successfully
+ *       400:
+ *         description: Invalid status
+ *       404:
+ *         description: Contract not found
+ */
+router.put('/:id/payment', updatePaymentStatus);
 
 // =============================================================================
 // PROTECTED ROUTES (Authentication Required)

@@ -5,6 +5,12 @@
 
 const express = require('express');
 const router = express.Router();
+/**
+ * @swagger
+ * tags:
+ *   - name: User Notes
+ *     description: User Notes API endpoints
+ */
 
 // Controllers
 const userNotesController = require('../controllers/userNotes.controller');

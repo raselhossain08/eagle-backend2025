@@ -5,6 +5,12 @@
 
 const express = require('express');
 const router = express.Router();
+/**
+ * @swagger
+ * tags:
+ *   - name: Integration Settings
+ *     description: Integration Settings API endpoints
+ */
 const IntegrationController = require('../controllers/IntegrationController');
 const { protect } = require('../../middlewares/auth.middleware');
 

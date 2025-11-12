@@ -13,6 +13,13 @@ const validatePayment = require("../middlewares/validatePayment");
 // Legacy / compatibility controllers
 const { PaymentController } = require("../payment/controllers/paymentProcessors.controller");
 
+/**
+ * @swagger
+ * tags:
+ *   - name: Payment (Legacy)
+ *     description: Legacy payment processing endpoints
+ */
+
 router.post("/stripe-payment", validatePayment, processStripePayment);
 router.post("/paypal-payment", validatePayment, processPaypalPayment);
 router.get("/success", executePaypalPayment);

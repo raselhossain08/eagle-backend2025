@@ -17,6 +17,12 @@ const express = require('express');
 const enhancedContractRoutes = require('../contract/routes/enhancedContract.routes');
 
 const router = express.Router();
+/**
+ * @swagger
+ * tags:
+ *   - name: Contracts
+ *     description: Contracts API endpoints
+ */
 
 // Mount enhanced contract routes at root level (primary access)
 router.use('/', enhancedContractRoutes);

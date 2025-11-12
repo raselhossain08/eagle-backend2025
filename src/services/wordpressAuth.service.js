@@ -38,9 +38,18 @@ class WordPressAuthService {
                 ]
             });
 
-            if (localUser && !localUser.isWordPressUser) {
+            console.log(`📋 User found:`, localUser ? {
+                email: localUser.email,
+                hasPassword: !!localUser.password,
+                isPendingUser: localUser.isPendingUser,
+                isWordPressUser: localUser.isWordPressUser,
+                isEmailVerified: localUser.isEmailVerified
+            } : 'No user found');
+
+            if (localUser && !localUser.isPendingUser && !localUser.isWordPressUser) {
                 // Pure local user - authenticate normally
                 const isPasswordValid = await localUser.comparePassword(password);
+                console.log(`🔑 Password validation result for local user:`, isPasswordValid);
                 if (isPasswordValid) {
                     console.log(`✅ Local authentication successful for: ${usernameOrEmail}`);
                     return {
@@ -52,7 +61,7 @@ class WordPressAuthService {
                 }
             }
 
-            if (localUser && localUser.isWordPressUser) {
+            if (localUser && !localUser.isPendingUser && localUser.isWordPressUser) {
                 // WordPress user already synced - try local password first
                 const isPasswordValid = await localUser.comparePassword(password);
                 if (isPasswordValid) {

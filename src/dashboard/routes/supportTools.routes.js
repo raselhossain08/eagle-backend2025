@@ -1,5 +1,11 @@
 const express = require('express');
 const router = express.Router();
+/**
+ * @swagger
+ * tags:
+ *   - name: Support Tools
+ *     description: Support Tools API endpoints
+ */
 const SupportToolsController = require('../controllers/supportTools.controller');
 const { protect } = require('../../../middlewares/auth.middleware');
 const rbac = require('../../../middlewares/rbac.middleware');
