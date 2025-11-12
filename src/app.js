@@ -82,37 +82,8 @@ const app = express();
 // Trust proxy - Required when behind reverse proxy (Nginx, load balancer, etc.)
 app.set('trust proxy', true);
 
-// Connect to MongoDB and wait for it to be ready
-const initializeApp = async () => {
-  try {
-    await connectDB();
-    console.log("🚀 Database connection established successfully");
-
-    const mongoose = require('mongoose');
-    if (mongoose.connection.readyState === 1) {
-      console.log("✅ MongoDB connection state: Connected");
-    } else {
-      console.log(`⚠️  MongoDB connection state: ${mongoose.connection.readyState}`);
-    }
-
-  } catch (error) {
-    console.error("❌ Database connection failed:", error.message);
-    console.error("Stack trace:", error.stack);
-
-    if (process.env.NODE_ENV !== 'production') {
-      console.log("🔄 Retrying database connection in 5 seconds...");
-      setTimeout(() => {
-        initializeApp();
-      }, 5000);
-    } else {
-      console.error("💥 Exiting due to database connection failure in production");
-      process.exit(1);
-    }
-  }
-};
-
-// Initialize database connection immediately
-initializeApp();
+// Database connection is now handled in index.js before app starts
+// This ensures routes are only accessible after DB is ready
 
 // -----------------------------
 // Global Middleware - CORS COMPLETELY OPEN
