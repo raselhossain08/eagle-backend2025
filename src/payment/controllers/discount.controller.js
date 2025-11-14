@@ -393,7 +393,9 @@ const updateDiscount = async (req, res) => {
     res.json({
       success: true,
       message: 'Discount updated successfully',
-      data: discount
+      data: {
+        discount
+      }
     });
   } catch (error) {
     console.error('Error updating discount:', error);
