@@ -18,10 +18,31 @@ class SubscriptionDashboardService {
         const mrr = this.calculateUserMRR(user);
 
         // Determine the actual plan name to display
-        // Priority: plan.name > plan.displayName > user.subscription
+        // Priority: plan.name > user.subscription
         let planName = user.subscription || 'None';
-        if (plan) {
-            planName = plan.name || plan.displayName || planName;
+        if (plan && plan.name) {
+            planName = plan.name;
+        }
+
+        // Determine planType from subscription name or billing cycle
+        let planType = 'subscription';
+        const subscriptionLower = (user.subscription || '').toLowerCase();
+        if (subscriptionLower.includes('one-time') || subscriptionLower.includes('onetime') || subscriptionLower.includes('lifetime')) {
+            planType = 'one-time';
+        } else if (user.billingCycle === 'lifetime') {
+            planType = 'one-time';
+        }
+
+        // Determine plan category from subscription name
+        let planCategory = 'standard';
+        if (subscriptionLower.includes('basic')) {
+            planCategory = 'basic';
+        } else if (subscriptionLower.includes('diamond')) {
+            planCategory = 'diamond';
+        } else if (subscriptionLower.includes('infinity') || subscriptionLower.includes('ultimate')) {
+            planCategory = 'infinity';
+        } else if (subscriptionLower.includes('premium') || subscriptionLower.includes('pro')) {
+            planCategory = 'premium';
         }
 
         return {
@@ -38,8 +59,8 @@ class SubscriptionDashboardService {
             subscriptionStatus: user.subscriptionStatus || 'none',
             currentPlan: planName,
             currentPlanId: user.subscriptionPlanId?.toString() || '',
-            planType: plan?.planType || 'subscription',
-            planCategory: plan?.category || 'standard',
+            planType: planType,
+            planCategory: planCategory,
             billingCycle: user.billingCycle || 'monthly',
             mrr: mrr,
             totalRevenue: user.totalSpent || 0,

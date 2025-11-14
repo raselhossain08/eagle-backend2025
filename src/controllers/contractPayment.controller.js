@@ -124,22 +124,35 @@ const resolveSubscriptionWithDatabase = async (subscriptionName, normalizedProdu
   try {
     // Try to find the plan by normalized product type for database linkage
     actualPlan = await MembershipPlan.findOne({
-      name: normalizedProductType,
-      isActive: { $ne: false }
+      slug: normalizedProductType.toLowerCase(),
+      status: 'active'
     }).lean();
 
     if (actualPlan) {
-      // If we found the plan in DB, use its displayName if available
-      if (actualPlan.displayName) {
-        finalSubscriptionName = actualPlan.displayName;
-        console.log(`✅ Found plan in database: "${actualPlan.name}" → displayName: "${actualPlan.displayName}"`);
-      }
+      // If we found the plan in DB, capitalize the name properly for User enum
+      finalSubscriptionName = actualPlan.name; // Use the name from DB which should be properly capitalized
+      console.log(`✅ Found plan in database: "${actualPlan.slug}" → name: "${actualPlan.name}"`);
     } else {
-      console.log(`⚠️ Plan not found in database for "${normalizedProductType}", using pricing config name: "${finalSubscriptionName}"`);
+      // Try to find by name as fallback
+      actualPlan = await MembershipPlan.findOne({
+        name: { $regex: new RegExp(`^${normalizedProductType}$`, 'i') },
+        status: 'active'
+      }).lean();
+
+      if (actualPlan) {
+        finalSubscriptionName = actualPlan.name;
+        console.log(`✅ Found plan by name: "${actualPlan.name}"`);
+      } else {
+        // Capitalize first letter as fallback for User enum compatibility
+        finalSubscriptionName = normalizedProductType.charAt(0).toUpperCase() + normalizedProductType.slice(1);
+        console.log(`⚠️ Plan not found in database for "${normalizedProductType}", using capitalized name: "${finalSubscriptionName}"`);
+      }
     }
   } catch (error) {
     console.error("❌ Error fetching plan from database:", error.message);
-    console.log(`⚠️ Using pricing config name as fallback: "${finalSubscriptionName}"`);
+    // Capitalize first letter as fallback
+    finalSubscriptionName = normalizedProductType.charAt(0).toUpperCase() + normalizedProductType.slice(1);
+    console.log(`⚠️ Using capitalized name as fallback: "${finalSubscriptionName}"`);
   }
 
   return { subscriptionName: finalSubscriptionName, plan: actualPlan };
@@ -706,7 +719,13 @@ exports.captureContractOrder = async (req, res) => {
 
         const updatedUser = await User.findByIdAndUpdate(
           accountResult.user._id,
-          userUpdateData,
+          {
+            $set: userUpdateData,
+            $inc: {
+              totalSpent: finalPrice,
+              lifetimeValue: finalPrice
+            }
+          },
           { new: true }
         );
 
@@ -1293,7 +1312,13 @@ exports.confirmStripePayment = async (req, res) => {
 
       const updatedUser = await User.findByIdAndUpdate(
         accountResult.user._id,
-        userUpdateData,
+        {
+          $set: userUpdateData,
+          $inc: {
+            totalSpent: finalPrice,
+            lifetimeValue: finalPrice
+          }
+        },
         { new: true }
       );
 
