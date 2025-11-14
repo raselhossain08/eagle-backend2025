@@ -575,10 +575,10 @@ exports.captureContractOrder = async (req, res) => {
           subscriptionEndDate: endDate,
           subscriptionPlanId: actualPlan ? actualPlan._id : null,
           billingCycle: subscriptionType === "yearly" ? "yearly" : "monthly",
-             
-          
-          
-          
+
+
+
+
           lastPaymentAmount: price,
         });
         console.log("✅ User subscription updated to:", newSubscription);
@@ -871,20 +871,17 @@ exports.confirmStripePayment = async (req, res) => {
     const normalizedProductType = normalizeProductType(contract.productType);
     const productInfo = PRODUCT_PRICING[normalizedProductType];
 
-    let price;
-    if (typeof productInfo.monthly === "object") {
-      // For products with nested pricing structure
-      price =
-        subscriptionType === "yearly"
-          ? parseFloat(productInfo.yearly.price)
-          : parseFloat(productInfo.monthly.price);
-    } else {
-      // For products with direct pricing
-      price =
-        subscriptionType === "yearly"
-          ? productInfo.yearly
-          : productInfo.monthly;
-    }
+    // ✅ USE ACTUAL AMOUNT PAID FROM STRIPE (includes discounts)
+    // Convert from cents to dollars
+    const actualAmountPaid = paymentIntent.amount / 100;
+    const price = actualAmountPaid;
+
+    console.log("💰 Using actual amount paid from Stripe:", {
+      amountInCents: paymentIntent.amount,
+      amountInDollars: actualAmountPaid,
+      contractId: contractId,
+      subscriptionType: subscriptionType
+    });
 
     // Calculate subscription dates
     const startDate = new Date();
@@ -963,52 +960,13 @@ exports.confirmStripePayment = async (req, res) => {
       });
       console.log("✅ User subscription updated to:", newSubscription);
 
-      // Refresh user data to get updated subscription for transaction
+      // Refresh user data to get updated subscription
       accountResult.user = await User.findById(accountResult.user._id);
     }
 
-    // Create transaction record
-    try {
-      const paymentWebhook = require('../../controllers/paymentWebhook.controller');
-
-      const paymentData = {
-        provider: 'stripe',
-        transactionId: paymentIntentId,
-        amount: price,
-        currency: 'usd',
-        status: 'succeeded',
-        paymentMethod: { type: 'card' },
-        responseMessage: 'Stripe payment completed'
-      };
-
-      const orderData = {
-        contractId: contractId,
-        productType: contract.productType,
-        productName: newSubscription || productInfo.name, // Use actual plan name
-        plan: `${newSubscription || productInfo.name} ${subscriptionType === 'yearly' ? 'Yearly' : 'Monthly'} Subscription`,
-        subscriptionType: 'one-time',
-        paymentMethod: 'stripe',
-        items: [{
-          id: normalizedProductType,
-          name: `${newSubscription || productInfo.name} ${subscriptionType === 'yearly' ? 'Yearly' : 'Monthly'} Subscription`,
-          quantity: 1,
-          price: price
-        }]
-      };
-
-      // Use the refreshed user data with updated subscription
-      const transactionUser = accountResult.user || (userId ? await User.findById(userId) : null);
-
-      if (transactionUser) {
-        await paymentWebhook.handleOneTimePayment(paymentData, transactionUser, orderData);
-        console.log("✅ Transaction record created for user:", transactionUser._id);
-      } else {
-        console.warn("⚠️ No user found for transaction record");
-      }
-    } catch (transactionError) {
-      console.error("❌ Failed to create transaction record:", transactionError);
-      // Don't fail the payment confirmation if transaction creation fails
-    }
+    // ✅ Transaction creation removed from backend
+    // Frontend will create transaction with correct discount information
+    console.log("💳 Payment confirmed. Frontend will create transaction with discount details.");
 
     res.json({
       success: true,
