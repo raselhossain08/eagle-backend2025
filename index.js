@@ -1,3 +1,6 @@
+// Load environment variables FIRST before anything else
+require('dotenv').config();
+
 const connectDB = require("./src/config/db");
 
 // Port

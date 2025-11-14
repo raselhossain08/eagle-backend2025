@@ -1,11 +1,13 @@
 const axios = require("axios");
 const SignedContract = require("../models/signedContract.model");
 const User = require("../user/models/user.model");
+const Transaction = require("../transaction/models/transaction.model");
 const PAYMENT_BRANDING = require("../config/paymentBranding");
-const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const crypto = require("crypto");
 const emailService = require("../services/emailService");
-require("dotenv").config();
+
+// Initialize Stripe - env vars already loaded by index.js
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 
 // Product pricing configuration - Updated to match WooCommerce products
 const PRODUCT_PRICING = {
@@ -61,6 +63,9 @@ const normalizeProductType = (productType) => {
   const normalized = productType
     .replace(/-subscription$/, "")
     .replace(/-package$/, "")
+    .replace(/-advisory$/, "") // Remove -advisory suffix (diamond-advisory → diamond)
+    .replace(/-membership$/, "") // Remove -membership suffix (infinity-membership → infinity)
+    .replace(/-access$/, "") // Remove -access suffix (script-access → script)
     .replace(/^mentorship-/, "")
     .replace(/^product-/, "");
 
@@ -73,7 +78,7 @@ const normalizeProductType = (productType) => {
     return "trading-tutor";
   }
 
-  if (normalized === "eagle-ultimate") {
+  if (normalized === "eagle-ultimate" || normalized === "ultimate") {
     return "ultimate";
   }
 
@@ -89,6 +94,55 @@ const calculateSubscriptionEndDate = (startDate, subscriptionType) => {
     endDate.setFullYear(endDate.getFullYear() + 1);
   }
   return endDate;
+};
+
+// Helper function to get subscription name from product configuration
+const getSubscriptionName = (productInfo, normalizedProductType) => {
+  // Determine subscription name from product pricing configuration
+  let subscriptionName;
+
+  if (typeof productInfo.monthly === 'object' && productInfo.monthly.name) {
+    // For products with nested pricing structure (e.g., script, investment-advising)
+    subscriptionName = productInfo.monthly.name;
+  } else if (productInfo.name) {
+    // For products with direct pricing (e.g., basic, diamond, infinity)
+    subscriptionName = productInfo.name;
+  } else {
+    // Last resort fallback - use normalized product type with capitalization
+    subscriptionName = normalizedProductType.charAt(0).toUpperCase() + normalizedProductType.slice(1);
+  }
+
+  return subscriptionName;
+};
+
+// Helper function to get subscription from database and update name if found
+const resolveSubscriptionWithDatabase = async (subscriptionName, normalizedProductType) => {
+  const MembershipPlan = require('../subscription/models/membershipPlan.model');
+  let actualPlan = null;
+  let finalSubscriptionName = subscriptionName;
+
+  try {
+    // Try to find the plan by normalized product type for database linkage
+    actualPlan = await MembershipPlan.findOne({
+      name: normalizedProductType,
+      isActive: { $ne: false }
+    }).lean();
+
+    if (actualPlan) {
+      // If we found the plan in DB, use its displayName if available
+      if (actualPlan.displayName) {
+        finalSubscriptionName = actualPlan.displayName;
+        console.log(`✅ Found plan in database: "${actualPlan.name}" → displayName: "${actualPlan.displayName}"`);
+      }
+    } else {
+      console.log(`⚠️ Plan not found in database for "${normalizedProductType}", using pricing config name: "${finalSubscriptionName}"`);
+    }
+  } catch (error) {
+    console.error("❌ Error fetching plan from database:", error.message);
+    console.log(`⚠️ Using pricing config name as fallback: "${finalSubscriptionName}"`);
+  }
+
+  return { subscriptionName: finalSubscriptionName, plan: actualPlan };
 };
 
 // Helper function to handle user account creation/update after successful payment
@@ -284,7 +338,7 @@ async function generateAccessToken() {
 // 🧾 Create Order for Contract Payment
 exports.createContractOrder = async (req, res) => {
   try {
-    const { contractId, subscriptionType = "monthly" } = req.body; // Default to monthly
+    const { contractId, subscriptionType = "monthly", discountCode, discountAmount, amount } = req.body; // Accept discount info and amount
     const userId = req.user ? req.user.id : null; // Support guest users
 
     console.log(
@@ -293,7 +347,11 @@ exports.createContractOrder = async (req, res) => {
       "subscription:",
       subscriptionType,
       "userId:",
-      userId || "guest"
+      userId || "guest",
+      "discount:",
+      discountCode || "none",
+      "frontendAmount:",
+      amount || "not provided"
     );
 
     // Validate contract exists - for guest users, check by contractId only
@@ -349,17 +407,51 @@ exports.createContractOrder = async (req, res) => {
           ? productInfo.yearly
           : productInfo.monthly;
     }
+
+    // Use frontend amount if provided (trusted source after discount validation)
+    let finalPrice;
+    if (amount && parseFloat(amount) > 0) {
+      finalPrice = parseFloat(amount);
+      console.log(`💰 Using frontend amount (already discounted): $${finalPrice}`);
+      console.log(`ℹ️ Skipping backend price calculation - trusting frontend`);
+    } else {
+      // Fallback: Apply discount to calculated price
+      finalPrice = price;
+      if (discountAmount && discountAmount > 0) {
+        finalPrice = Math.max(0, price - discountAmount); // Ensure non-negative
+        console.log(`💰 Applying discount to calculated price: $${price} - $${discountAmount} = $${finalPrice}`);
+      }
+    }
+
+    // Ensure finalPrice is never negative or zero
+    if (finalPrice <= 0) {
+      console.error(`❌ Invalid final price: $${finalPrice}. Price: $${price}, Discount: $${discountAmount}, Frontend Amount: $${amount}`);
+      return res.status(400).json({
+        success: false,
+        message: `Invalid price calculation. Final price cannot be negative or zero. Please check your discount code or contact support.`,
+        details: {
+          calculatedPrice: price,
+          discountAmount: discountAmount || 0,
+          frontendAmount: amount || null,
+          finalPrice,
+          suggestion: amount && parseFloat(amount) > 0 ? "Frontend sent valid amount but discount mismatch" : "No valid amount provided"
+        }
+      });
+    }
+
     const subscriptionTypeText =
       subscriptionType === "yearly" ? "Yearly" : "Monthly";
 
     const accessToken = await generateAccessToken();
 
     // Format price for PayPal (must be string with 2 decimal places)
-    const formattedPrice = parseFloat(price).toFixed(2);
+    const formattedPrice = parseFloat(finalPrice).toFixed(2);
 
     console.log("PayPal Order Details:", {
       contractId,
-      price,
+      originalPrice: price,
+      discountAmount: discountAmount || 0,
+      finalPrice,
       formattedPrice,
       productName: productInfo.name,
       subscriptionType: subscriptionTypeText,
@@ -414,7 +506,7 @@ exports.createContractOrder = async (req, res) => {
       success: true,
       orderId: response.data.id,
       contractId,
-      amount: price, // Use the calculated price, not productInfo.price
+      amount: finalPrice, // Return the discounted price
       approvalUrl: response.data.links.find((link) => link.rel === "approve")
         ?.href,
       productName: productInfo.name,
@@ -433,7 +525,7 @@ exports.createContractOrder = async (req, res) => {
 exports.captureContractOrder = async (req, res) => {
   try {
     const { orderId } = req.params;
-    const { contractId, subscriptionType = "monthly" } = req.body; // Get subscription type from request
+    const { contractId, subscriptionType = "monthly", discountCode, discountAmount, amount } = req.body; // Get discount info and amount from request
     const userId = req.user ? req.user.id : null; // Support guest users
 
     console.log(
@@ -444,7 +536,11 @@ exports.captureContractOrder = async (req, res) => {
       "subscription:",
       subscriptionType,
       "userId:",
-      userId || "guest"
+      userId || "guest",
+      "discount:",
+      discountCode || "none",
+      "frontendAmount:",
+      amount || "not provided"
     );
 
     // Validate contract - for guest users, check by contractId only
@@ -505,45 +601,217 @@ exports.captureContractOrder = async (req, res) => {
             : productInfo.monthly;
       }
 
+      // Use frontend amount if provided (trusted source after discount validation)
+      let finalPrice;
+      if (amount && parseFloat(amount) > 0) {
+        finalPrice = parseFloat(amount);
+        console.log(`💰 Using frontend amount in capture (already discounted): $${finalPrice}`);
+        // Validate that frontend amount makes sense
+        const calculatedPrice = discountAmount && discountAmount > 0 ? price - discountAmount : price;
+        const difference = Math.abs(finalPrice - calculatedPrice);
+        if (difference > 0.01) {
+          console.warn(`⚠️ Frontend amount ($${finalPrice}) differs from calculated ($${calculatedPrice})`);
+        }
+      } else {
+        // Fallback: Apply discount to calculated price
+        finalPrice = price;
+        if (discountAmount && discountAmount > 0) {
+          finalPrice = price - discountAmount;
+          console.log(`💰 Applied discount in capture: $${price} - $${discountAmount} = $${finalPrice}`);
+        }
+      }
+
       // Calculate subscription dates
       const startDate = new Date();
       const endDate = calculateSubscriptionEndDate(startDate, subscriptionType);
 
-      // Update contract status with subscription information
-      const updatedContract = await SignedContract.findByIdAndUpdate(contractId, {
+      // Update contract status with subscription information and discount
+      const updateData = {
         status: "completed",
         paymentId: orderId,
         paymentProvider: "paypal",
         subscriptionType: subscriptionType,
-        subscriptionPrice: price,
+        subscriptionPrice: finalPrice, // Save discounted price
         subscriptionStartDate: startDate,
         subscriptionEndDate: endDate,
-      }, { new: true });
+      };
+
+      // Add discount information if discount was applied
+      if (discountCode && discountAmount) {
+        updateData.discountCode = discountCode;
+        updateData.discountAmount = discountAmount;
+        updateData.originalPrice = price;
+      }
+
+      const updatedContract = await SignedContract.findByIdAndUpdate(
+        contractId,
+        updateData,
+        { new: true }
+      );
 
       console.log("✅ PayPal payment completed, processing user account...");
 
       // Handle post-payment user account creation/update
       const accountResult = await handlePostPaymentUserAccount(updatedContract);
 
-      // Update user subscription based on product type (only for active users)
-      const subscriptionMap = {
-        basic: "Basic",
-        script: "Script",
-        diamond: "Diamond",
-        infinity: "Infinity",
-        "investment-advising": "Diamond",
-        "trading-tutor": "Basic",
-        ultimate: "Infinity",
-      };
+      // Get subscription name from product pricing configuration
+      let newSubscription = getSubscriptionName(productInfo, normalizedProductType);
+      console.log(`💳 Subscription determined from pricing config: "${newSubscription}" (productType: "${updatedContract.productType}", normalized: "${normalizedProductType}")`);
 
-      const newSubscription = subscriptionMap[normalizedProductType];
+      // Try to resolve from database and get actual plan
+      const { subscriptionName, plan: actualPlan } = await resolveSubscriptionWithDatabase(newSubscription, normalizedProductType);
+      newSubscription = subscriptionName;
 
-      // Update user subscription if user exists and is active
-      if (accountResult.user && !accountResult.user.isPendingUser && newSubscription) {
-        await User.findByIdAndUpdate(accountResult.user._id, {
-          subscription: newSubscription,
+      console.log("🔍 Subscription Update Check:", {
+        hasUser: !!accountResult.user,
+        userId: accountResult.user?._id,
+        isPendingUser: accountResult.user?.isPendingUser,
+        normalizedProductType,
+        newSubscription,
+        actualPlanFound: !!actualPlan,
+        willUpdate: accountResult.user && !accountResult.user.isPendingUser && newSubscription
+      });
+
+      // Update user subscription if user exists (even if pending, they paid!)
+      if (accountResult.user && newSubscription) {
+        console.log("🔍 MembershipPlan Info:", {
+          subscriptionName: newSubscription,
+          found: !!actualPlan,
+          planId: actualPlan?._id,
+          planName: actualPlan?.name
         });
-        console.log("✅ User subscription updated to:", newSubscription);
+
+        const userUpdateData = {
+          subscription: newSubscription, // Use resolved subscription name
+          subscriptionStatus: 'active',
+          subscriptionStartDate: startDate,
+          subscriptionEndDate: endDate,
+          nextBillingDate: endDate,
+          lastBillingDate: startDate,
+          lastPaymentAmount: finalPrice,
+          billingCycle: subscriptionType === 'yearly' ? 'yearly' : 'monthly',
+          isActive: true, // Activate user after payment
+          isPendingUser: false, // Clear pending status after payment
+        };
+
+        // Add plan reference if found
+        if (actualPlan) {
+          userUpdateData.subscriptionPlanId = actualPlan._id;
+          console.log("✅ Using membership plan:", actualPlan.name);
+        } else {
+          console.warn("⚠️ No membership plan found in database for:", newSubscription);
+        }
+
+        console.log("📝 Updating user with data:", userUpdateData);
+
+        const updatedUser = await User.findByIdAndUpdate(
+          accountResult.user._id,
+          userUpdateData,
+          { new: true }
+        );
+
+        console.log("✅ User subscription updated:", {
+          userId: updatedUser._id,
+          subscription: updatedUser.subscription,
+          subscriptionStatus: updatedUser.subscriptionStatus,
+          isActive: updatedUser.isActive,
+          isPendingUser: updatedUser.isPendingUser
+        });
+
+        // Create or update Subscription record
+        const Subscription = require('../subscription/models/subscription.model');
+        const existingSubscription = await Subscription.findOne({
+          userId: accountResult.user._id,
+          status: { $in: ['active', 'trial', 'paused'] }
+        });
+
+        if (existingSubscription) {
+          // Update existing subscription
+          await Subscription.findByIdAndUpdate(existingSubscription._id, {
+            planId: actualPlan?._id,
+            status: 'active',
+            currentPeriodStart: startDate,
+            currentPeriodEnd: endDate,
+            billingCycle: subscriptionType === 'yearly' ? 'yearly' : 'monthly',
+            currentPrice: finalPrice,
+            currency: 'USD',
+            ...(discountCode && { appliedDiscounts: [{ code: discountCode, amount: discountAmount }] })
+          });
+          console.log("✅ Updated existing subscription record");
+        } else if (actualPlan) {
+          // Create new subscription record
+          await Subscription.create({
+            userId: accountResult.user._id,
+            planId: actualPlan._id,
+            status: 'active',
+            currentPeriodStart: startDate,
+            currentPeriodEnd: endDate,
+            billingCycle: subscriptionType === 'yearly' ? 'yearly' : 'monthly',
+            currentPrice: finalPrice,
+            currency: 'USD',
+            paymentMethod: 'paypal',
+            autoRenew: true,
+            ...(discountCode && { appliedDiscounts: [{ code: discountCode, amount: discountAmount }] })
+          });
+          console.log("✅ Created new subscription record");
+        }
+
+        // Create transaction record with userId link
+        try {
+          const transaction = await Transaction.createCharge({
+            userId: accountResult.user._id, // Link to user
+            type: 'charge',
+            status: 'succeeded',
+            amount: {
+              gross: Math.round(finalPrice * 100), // Convert to cents
+              fee: 0,
+              net: Math.round(finalPrice * 100),
+              tax: 0,
+              discount: discountAmount ? Math.round(discountAmount * 100) : 0,
+            },
+            currency: 'USD',
+            psp: {
+              provider: 'paypal',
+              reference: {
+                transactionId: orderId,
+              },
+            },
+            paymentMethod: {
+              type: 'paypal',
+              ...(accountResult.user?.email && {
+                digital: {
+                  email: accountResult.user.email,
+                },
+              }),
+            },
+            description: `Payment for ${productInfo.name} ${subscriptionType === 'yearly' ? 'Yearly' : 'Monthly'} Subscription`,
+            metadata: {
+              contractId: contractId,
+              productType: 'mentorship-package',
+              productName: `${productInfo.name} ${subscriptionType === 'yearly' ? 'Yearly' : 'Monthly'} Subscription`,
+              plan: `${productInfo.name} ${subscriptionType === 'yearly' ? 'Yearly' : 'Monthly'} Subscription`,
+              subscriptionType: subscriptionType === 'one-time' ? 'one-time' : subscriptionType,
+              paymentMethod: 'paypal',
+              items: [
+                {
+                  id: actualPlan?._id || normalizedProductType,
+                  name: `${productInfo.name} ${subscriptionType === 'yearly' ? 'Yearly' : 'Monthly'} Subscription`,
+                  quantity: 1,
+                  price: finalPrice,
+                  originalPrice: price,
+                  memberPrice: finalPrice,
+                },
+              ],
+              discountApplied: !!discountCode,
+              discountAmount: discountAmount || 0,
+              originalAmount: price,
+            },
+          });
+          console.log("✅ Created transaction record:", transaction.transactionId);
+        } catch (txError) {
+          console.error("❌ Failed to create transaction record:", txError);
+          // Don't fail the payment, just log the error
+        }
       }
 
       res.json({
@@ -652,7 +920,7 @@ exports.captureOrder = async (req, res) => {
 // 💳 Create Stripe Payment Intent for Contract Payment
 exports.createStripePaymentIntent = async (req, res) => {
   try {
-    const { contractId, subscriptionType = "monthly" } = req.body; // Default to monthly
+    const { contractId, subscriptionType = "monthly", discountCode, discountAmount, amount } = req.body; // Accept discount info and amount
     const userId = req.user ? req.user.id : null; // Support guest users
 
     console.log(
@@ -661,7 +929,11 @@ exports.createStripePaymentIntent = async (req, res) => {
       "subscription:",
       subscriptionType,
       "userId:",
-      userId || "guest"
+      userId || "guest",
+      "discount:",
+      discountCode || "none",
+      "frontendAmount:",
+      amount || "not provided"
     );
 
     // Validate contract exists - for guest users, check by contractId only
@@ -726,6 +998,26 @@ exports.createStripePaymentIntent = async (req, res) => {
       productName = productInfo.name;
     }
 
+    // Use frontend amount if provided (trusted source after discount validation)
+    let finalPrice;
+    if (amount && parseFloat(amount) > 0) {
+      finalPrice = parseFloat(amount);
+      console.log(`💰 Using frontend amount for Stripe (already discounted): $${finalPrice}`);
+      // Validate that frontend amount makes sense
+      const calculatedPrice = discountAmount && discountAmount > 0 ? price - discountAmount : price;
+      const difference = Math.abs(finalPrice - calculatedPrice);
+      if (difference > 0.01) {
+        console.warn(`⚠️ Frontend amount ($${finalPrice}) differs from calculated ($${calculatedPrice})`);
+      }
+    } else {
+      // Fallback: Apply discount to calculated price
+      finalPrice = price;
+      if (discountAmount && discountAmount > 0) {
+        finalPrice = price - discountAmount;
+        console.log(`💰 Applying discount to Stripe payment: $${price} - $${discountAmount} = $${finalPrice}`);
+      }
+    }
+
     const subscriptionTypeText =
       subscriptionType === "yearly" ? "Yearly" : "Monthly";
 
@@ -747,7 +1039,9 @@ exports.createStripePaymentIntent = async (req, res) => {
       : null;
 
     console.log("💳 Creating Stripe payment intent:", {
-      amount: Math.round(parseFloat(price) * 100),
+      amount: Math.round(parseFloat(finalPrice) * 100),
+      originalPrice: price,
+      discountAmount: discountAmount || 0,
       contractId: contract._id,
       userId: userId || "guest",
       receiptEmail,
@@ -756,7 +1050,7 @@ exports.createStripePaymentIntent = async (req, res) => {
     });
 
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(parseFloat(price) * 100), // Convert to cents
+      amount: Math.round(parseFloat(finalPrice) * 100), // Convert to cents with discount applied
       currency: "usd",
       metadata: {
         contractId: contract._id.toString(),
@@ -765,6 +1059,9 @@ exports.createStripePaymentIntent = async (req, res) => {
         subscriptionType: subscriptionType,
         ...PAYMENT_BRANDING.stripe.metadata,
         productName: productInfo.name,
+        ...(discountCode && { discountCode }),
+        ...(discountAmount && { discountAmount: discountAmount.toString() }),
+        ...(discountAmount && { originalPrice: price.toString() }),
       },
       description: productDescription,
       statement_descriptor: PAYMENT_BRANDING.stripe.statementDescriptor,
@@ -790,7 +1087,7 @@ exports.createStripePaymentIntent = async (req, res) => {
 // ✅ Confirm Stripe Payment for Contract
 exports.confirmStripePayment = async (req, res) => {
   try {
-    const { paymentIntentId, contractId } = req.body;
+    const { paymentIntentId, contractId, discountCode, discountAmount, amount } = req.body;
     const userId = req.user ? req.user.id : null; // Support guest users
 
     console.log(
@@ -799,7 +1096,11 @@ exports.confirmStripePayment = async (req, res) => {
       "for contract:",
       contractId,
       "userId:",
-      userId || "guest"
+      userId || "guest",
+      "discount:",
+      discountCode || "none",
+      "frontendAmount:",
+      amount || "not provided"
     );
 
     // Validate contract exists - for guest users, check by contractId only
@@ -842,8 +1143,33 @@ exports.confirmStripePayment = async (req, res) => {
     const subscriptionType =
       paymentIntent.metadata.subscriptionType || "monthly";
 
+    console.log("📄 Contract Product Type (Stripe):", {
+      originalProductType: contract.productType,
+      normalizedProductType: normalizeProductType(contract.productType)
+    });
+
+    // Define subscription mapping early (before use)
+    const subscriptionMap = {
+      basic: "Basic",
+      script: "Script",
+      diamond: "Diamond",
+      infinity: "Infinity",
+      "investment-advising": "Diamond",
+      "investment-advisory": "Diamond", // Alternative spelling
+      "trading-tutor": "Basic",
+      ultimate: "Infinity",
+      "ultimate-package": "Infinity", // Handle ultimate-package
+    };
+
     // Get pricing information with normalized product type
     const normalizedProductType = normalizeProductType(contract.productType);
+
+    console.log("📦 Product Type Analysis (Stripe):", {
+      originalProductType: contract.productType,
+      normalizedProductType,
+      willMapTo: subscriptionMap[normalizedProductType] || "NOT FOUND"
+    });
+
     const productInfo = PRODUCT_PRICING[normalizedProductType];
 
     let price;
@@ -861,23 +1187,52 @@ exports.confirmStripePayment = async (req, res) => {
           : productInfo.monthly;
     }
 
+    // Use frontend amount if provided (trusted source after discount validation)
+    let finalPrice;
+    if (amount && parseFloat(amount) > 0) {
+      finalPrice = parseFloat(amount);
+      console.log(`💰 Using frontend amount in Stripe confirmation (already discounted): $${finalPrice}`);
+      // Validate that frontend amount makes sense
+      const calculatedPrice = discountAmount && discountAmount > 0 ? price - discountAmount : price;
+      const difference = Math.abs(finalPrice - calculatedPrice);
+      if (difference > 0.01) {
+        console.warn(`⚠️ Frontend amount ($${finalPrice}) differs from calculated ($${calculatedPrice})`);
+      }
+    } else {
+      // Fallback: Apply discount to calculated price
+      finalPrice = price;
+      if (discountAmount && discountAmount > 0) {
+        finalPrice = price - discountAmount;
+        console.log(`💰 Applied discount in Stripe confirmation: $${price} - $${discountAmount} = $${finalPrice}`);
+      }
+    }
+
     // Calculate subscription dates
     const startDate = new Date();
     const endDate = calculateSubscriptionEndDate(startDate, subscriptionType);
 
-    // Update contract with payment information and subscription data
+    // Update contract with payment information, subscription data, and discount
+    const updateData = {
+      status: "completed",
+      paymentId: paymentIntentId,
+      paymentProvider: "stripe",
+      paymentCompletedAt: new Date(),
+      subscriptionType: subscriptionType,
+      subscriptionPrice: finalPrice, // Save discounted price
+      subscriptionStartDate: startDate,
+      subscriptionEndDate: endDate,
+    };
+
+    // Add discount information if discount was applied
+    if (discountCode && discountAmount) {
+      updateData.discountCode = discountCode;
+      updateData.discountAmount = discountAmount;
+      updateData.originalPrice = price;
+    }
+
     const updatedContract = await SignedContract.findByIdAndUpdate(
       contractId,
-      {
-        status: "completed",
-        paymentId: paymentIntentId,
-        paymentProvider: "stripe",
-        paymentCompletedAt: new Date(),
-        subscriptionType: subscriptionType,
-        subscriptionPrice: price,
-        subscriptionStartDate: startDate,
-        subscriptionEndDate: endDate,
-      },
+      updateData,
       { new: true }
     );
 
@@ -886,25 +1241,160 @@ exports.confirmStripePayment = async (req, res) => {
     // Handle post-payment user account creation/update
     const accountResult = await handlePostPaymentUserAccount(updatedContract);
 
-    // Update user subscription based on product type (only for active users)
-    const subscriptionMap = {
-      basic: "Basic",
-      script: "Script",
-      diamond: "Diamond",
-      infinity: "Infinity",
-      "investment-advising": "Diamond",
-      "trading-tutor": "Basic",
-      ultimate: "Infinity",
-    };
+    // Get subscription name from product pricing configuration
+    let newSubscription = getSubscriptionName(productInfo, normalizedProductType);
+    console.log(`💳 Subscription determined from pricing config: "${newSubscription}" (productType: "${updatedContract.productType}", normalized: "${normalizedProductType}")`);
 
-    const newSubscription = subscriptionMap[normalizedProductType];
+    // Try to resolve from database and get actual plan
+    const { subscriptionName, plan: actualPlan } = await resolveSubscriptionWithDatabase(newSubscription, normalizedProductType);
+    newSubscription = subscriptionName;
 
-    // Update user subscription if user exists and is active
-    if (accountResult.user && !accountResult.user.isPendingUser && newSubscription) {
-      await User.findByIdAndUpdate(accountResult.user._id, {
-        subscription: newSubscription,
+    console.log("🔍 Stripe Subscription Update Check:", {
+      hasUser: !!accountResult.user,
+      userId: accountResult.user?._id,
+      isPendingUser: accountResult.user?.isPendingUser,
+      normalizedProductType,
+      newSubscription,
+      actualPlanFound: !!actualPlan,
+      willUpdate: accountResult.user && !accountResult.user.isPendingUser && newSubscription
+    });
+
+    // Update user subscription if user exists (even if pending, they paid!)
+    if (accountResult.user && newSubscription) {
+      console.log("🔍 MembershipPlan Info (Stripe):", {
+        subscriptionName: newSubscription,
+        found: !!actualPlan,
+        planId: actualPlan?._id,
+        planName: actualPlan?.name
       });
-      console.log("✅ User subscription updated to:", newSubscription);
+
+      const userUpdateData = {
+        subscription: newSubscription, // Use resolved subscription name
+        subscriptionStatus: 'active',
+        subscriptionStartDate: startDate,
+        subscriptionEndDate: endDate,
+        nextBillingDate: endDate,
+        lastBillingDate: startDate,
+        lastPaymentAmount: finalPrice,
+        billingCycle: subscriptionType === 'yearly' ? 'yearly' : 'monthly',
+        isActive: true, // Activate user after payment
+        isPendingUser: false, // Clear pending status after payment
+      };
+
+      // Add plan reference if found
+      if (actualPlan) {
+        userUpdateData.subscriptionPlanId = actualPlan._id;
+        console.log("✅ Using membership plan:", actualPlan.name);
+      } else {
+        console.warn("⚠️ No membership plan found in database for:", newSubscription);
+      }
+
+      console.log("📝 Updating user with data (Stripe):", userUpdateData);
+
+      const updatedUser = await User.findByIdAndUpdate(
+        accountResult.user._id,
+        userUpdateData,
+        { new: true }
+      );
+
+      console.log("✅ User subscription updated (Stripe):", {
+        userId: updatedUser._id,
+        subscription: updatedUser.subscription,
+        subscriptionStatus: updatedUser.subscriptionStatus,
+        isActive: updatedUser.isActive,
+        isPendingUser: updatedUser.isPendingUser
+      });
+
+      // Create or update Subscription record
+      const Subscription = require('../subscription/models/subscription.model');
+      const existingSubscription = await Subscription.findOne({
+        userId: accountResult.user._id,
+        status: { $in: ['active', 'trial', 'paused'] }
+      });
+
+      if (existingSubscription) {
+        // Update existing subscription
+        await Subscription.findByIdAndUpdate(existingSubscription._id, {
+          planId: actualPlan?._id,
+          status: 'active',
+          currentPeriodStart: startDate,
+          currentPeriodEnd: endDate,
+          billingCycle: subscriptionType === 'yearly' ? 'yearly' : 'monthly',
+          currentPrice: finalPrice,
+          currency: 'USD',
+          ...(discountCode && { appliedDiscounts: [{ code: discountCode, amount: discountAmount }] })
+        });
+        console.log("✅ Updated existing subscription record");
+      } else if (actualPlan) {
+        // Create new subscription record
+        await Subscription.create({
+          userId: accountResult.user._id,
+          planId: actualPlan._id,
+          status: 'active',
+          currentPeriodStart: startDate,
+          currentPeriodEnd: endDate,
+          billingCycle: subscriptionType === 'yearly' ? 'yearly' : 'monthly',
+          currentPrice: finalPrice,
+          currency: 'USD',
+          paymentMethod: 'stripe',
+          autoRenew: true,
+          ...(discountCode && { appliedDiscounts: [{ code: discountCode, amount: discountAmount }] })
+        });
+        console.log("✅ Created new subscription record");
+      }
+
+      // Create transaction record with userId link
+      try {
+        const transaction = await Transaction.createCharge({
+          userId: accountResult.user._id, // Link to user
+          type: 'charge',
+          status: 'succeeded',
+          amount: {
+            gross: Math.round(finalPrice * 100), // Convert to cents
+            fee: 0,
+            net: Math.round(finalPrice * 100),
+            tax: 0,
+            discount: discountAmount ? Math.round(discountAmount * 100) : 0,
+          },
+          currency: 'USD',
+          psp: {
+            provider: 'stripe',
+            reference: {
+              paymentIntentId: paymentIntentId,
+              chargeId: paymentIntent.latest_charge || paymentIntentId,
+            },
+          },
+          paymentMethod: {
+            type: 'card',
+          },
+          description: `Payment for ${productInfo.name} ${subscriptionType === 'yearly' ? 'Yearly' : 'Monthly'} Subscription`,
+          metadata: {
+            contractId: contractId,
+            productType: 'mentorship-package',
+            productName: `${productInfo.name} ${subscriptionType === 'yearly' ? 'Yearly' : 'Monthly'} Subscription`,
+            plan: `${productInfo.name} ${subscriptionType === 'yearly' ? 'Yearly' : 'Monthly'} Subscription`,
+            subscriptionType: subscriptionType === 'one-time' ? 'one-time' : subscriptionType,
+            paymentMethod: 'stripe',
+            items: [
+              {
+                id: actualPlan?._id || normalizedProductType,
+                name: `${productInfo.name} ${subscriptionType === 'yearly' ? 'Yearly' : 'Monthly'} Subscription`,
+                quantity: 1,
+                price: finalPrice,
+                originalPrice: price,
+                memberPrice: finalPrice,
+              },
+            ],
+            discountApplied: !!discountCode,
+            discountAmount: discountAmount || 0,
+            originalAmount: price,
+          },
+        });
+        console.log("✅ Created transaction record:", transaction.transactionId);
+      } catch (txError) {
+        console.error("❌ Failed to create transaction record:", txError);
+        // Don't fail the payment, just log the error
+      }
     }
 
     res.json({

@@ -5,12 +5,12 @@ const transactionTaxService = new TransactionTaxService();
 
 /**
  * Payment Transaction Integration Service
- * এটি payment থেকে transaction তৈরি এবং manage করার service
+ * 
  */
 class PaymentTransactionService {
 
     /**
-     * Subscription payment থেকে transaction তৈরি করা
+     * 
      * @param {Object} paymentData - Payment details
      * @param {Object} subscriptionData - Subscription details  
      * @param {Object} userdata - User details
@@ -23,7 +23,7 @@ class PaymentTransactionService {
                 userId: userData._id
             });
 
-            // Tax calculation করি if not already calculated
+            //
             let taxData = null;
             if (!paymentData.tax || paymentData.tax === 0) {
                 try {
@@ -87,7 +87,6 @@ class PaymentTransactionService {
 
             const result = await transactionService.createTransaction(transactionData);
 
-            // Tax metadata আরো detail এ add করি
             if (taxData?.success && result.success) {
                 try {
                     await transactionTaxService.updateTransactionWithTax(

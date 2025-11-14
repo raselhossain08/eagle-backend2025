@@ -17,6 +17,13 @@ class SubscriptionDashboardService {
     transformUserToSubscription(user, plan = null) {
         const mrr = this.calculateUserMRR(user);
 
+        // Determine the actual plan name to display
+        // Priority: plan.name > plan.displayName > user.subscription
+        let planName = user.subscription || 'None';
+        if (plan) {
+            planName = plan.name || plan.displayName || planName;
+        }
+
         return {
             _id: user._id.toString(),
             subscriberId: user._id.toString(),
@@ -27,9 +34,9 @@ class SubscriptionDashboardService {
             phone: user.phone || null,
             company: user.company || null,
             country: user.country || 'US',
-            subscription: user.subscription || 'None',
+            subscription: planName,
             subscriptionStatus: user.subscriptionStatus || 'none',
-            currentPlan: user.subscription || 'None',
+            currentPlan: planName,
             currentPlanId: user.subscriptionPlanId?.toString() || '',
             planType: plan?.planType || 'subscription',
             planCategory: plan?.category || 'standard',
@@ -182,10 +189,16 @@ class SubscriptionDashboardService {
                 endDate
             } = params;
 
-            // Build query
+            // Build query - show all subscribers
             const query = {
                 role: { $in: ['subscriber', 'user'] },
-                isDeleted: { $ne: true }
+                isDeleted: { $ne: true },
+                $or: [
+                    { isPendingUser: { $ne: true } }, // Non-pending users
+                    { subscriptionStatus: 'active' }, // OR users with active subscriptions
+                    { subscription: { $ne: 'None' } }, // OR users with any subscription
+                    { subscriptionPlanId: { $exists: true, $ne: null } } // OR users with a plan ID
+                ]
             };
 
             if (status && status !== 'all') {

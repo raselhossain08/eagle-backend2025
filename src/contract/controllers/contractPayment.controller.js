@@ -2,10 +2,11 @@ const axios = require("axios");
 const { SignedContract } = require("../models/contract.model");
 const User = require("../../user/models/user.model");
 const PAYMENT_BRANDING = require("../config/paymentBranding");
-const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 const crypto = require("crypto");
 const emailService = require("../../services/emailService");
-require("dotenv").config();
+
+// Initialize Stripe - env vars already loaded by index.js
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 
 // Product pricing configuration - Updated to match WooCommerce products
 const PRODUCT_PRICING = {
@@ -101,7 +102,7 @@ const handlePostPaymentUserAccount = async (contract) => {
       const existingUser = await User.findById(contract.userId);
       if (existingUser && !existingUser.isPendingUser) {
         console.log("✅ Contract already linked to active user:", existingUser.email);
-        return { 
+        return {
           status: 'existing_active_user',
           user: existingUser,
           message: 'Welcome back! Your subscription is now active.'
@@ -111,10 +112,10 @@ const handlePostPaymentUserAccount = async (contract) => {
 
     // Find or create user account
     let user = await User.findOne({ email: contract.email.toLowerCase() });
-    
+
     if (!user) {
       console.log("👤 No user found, creating new account for:", contract.email);
-      
+
       // Generate activation token for new account
       const activationToken = crypto.randomBytes(32).toString('hex');
       const activationTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
@@ -155,7 +156,7 @@ const handlePostPaymentUserAccount = async (contract) => {
 
     } else if (user.isPendingUser) {
       console.log("🔄 User exists as pending, updating activation for:", user.email);
-      
+
       // Update activation token for existing pending user
       user.activationToken = crypto.randomBytes(32).toString('hex');
       user.activationTokenExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
@@ -187,7 +188,7 @@ const handlePostPaymentUserAccount = async (contract) => {
 
     } else {
       console.log("✅ User already exists and is active:", user.email);
-      
+
       // Update contract with user ID if not already set
       if (!contract.userId) {
         contract.userId = user._id;
@@ -526,23 +527,59 @@ exports.captureContractOrder = async (req, res) => {
       // Handle post-payment user account creation/update
       const accountResult = await handlePostPaymentUserAccount(updatedContract);
 
-      // Update user subscription based on product type (only for active users)
-      const subscriptionMap = {
-        basic: "Basic",
-        script: "Script", 
-        diamond: "Diamond",
-        infinity: "Infinity",
-        "investment-advising": "Diamond",
-        "trading-tutor": "Basic",
-        ultimate: "Infinity",
-      };
+      // Get the actual plan from database to use its displayName
+      const MembershipPlan = require('../../subscription/models/membershipPlan.model');
+      let actualPlan = null;
 
-      const newSubscription = subscriptionMap[normalizedProductType];
-      
+      // Determine subscription name from product pricing configuration
+      let newSubscription;
+      if (typeof productInfo.monthly === 'object' && productInfo.monthly.name) {
+        // For products with nested pricing structure (e.g., script, investment-advising)
+        newSubscription = productInfo.monthly.name;
+      } else if (productInfo.name) {
+        // For products with direct pricing (e.g., basic, diamond, infinity)
+        newSubscription = productInfo.name;
+      } else {
+        // Last resort fallback - use normalized product type
+        newSubscription = normalizedProductType.charAt(0).toUpperCase() + normalizedProductType.slice(1);
+      }
+      console.log(`💳 Subscription determined from pricing config: "${newSubscription}" (productType: "${updatedContract.productType}", normalized: "${normalizedProductType}")`);
+
+      try {
+        // Try to find the plan by normalized product type for database linkage
+        actualPlan = await MembershipPlan.findOne({
+          name: normalizedProductType,
+          isActive: { $ne: false }
+        }).lean();
+
+        if (actualPlan) {
+          // If we found the plan in DB, use its displayName if available
+          if (actualPlan.displayName) {
+            newSubscription = actualPlan.displayName;
+            console.log(`✅ Found plan in database: "${actualPlan.name}" → displayName: "${actualPlan.displayName}"`);
+          }
+        } else {
+          console.log(`⚠️ Plan not found in database for "${normalizedProductType}", using pricing config name: "${newSubscription}"`);
+        }
+      } catch (error) {
+        console.error("❌ Error fetching plan from database:", error.message);
+        console.log(`⚠️ Using pricing config name as fallback: "${newSubscription}"`);
+      }
+
       // Update user subscription if user exists and is active
       if (accountResult.user && !accountResult.user.isPendingUser && newSubscription) {
         await User.findByIdAndUpdate(accountResult.user._id, {
           subscription: newSubscription,
+          subscriptionStatus: "active",
+          subscriptionStartDate: startDate,
+          subscriptionEndDate: endDate,
+          subscriptionPlanId: actualPlan ? actualPlan._id : null,
+          billingCycle: subscriptionType === "yearly" ? "yearly" : "monthly",
+             
+          
+          
+          
+          lastPaymentAmount: price,
         });
         console.log("✅ User subscription updated to:", newSubscription);
       }
@@ -730,7 +767,7 @@ exports.createStripePaymentIntent = async (req, res) => {
     const statementSuffix = PAYMENT_BRANDING.getStatementDescriptorSuffix(productInfo.name);
 
     // Get email for receipt - from authenticated user or contract
-    const receiptEmail = PAYMENT_BRANDING.stripe.receiptEmail 
+    const receiptEmail = PAYMENT_BRANDING.stripe.receiptEmail
       ? (req.user ? req.user.email : (contract.email && contract.email.trim() ? contract.email.trim() : null))
       : null;
 
@@ -874,25 +911,103 @@ exports.confirmStripePayment = async (req, res) => {
     // Handle post-payment user account creation/update
     const accountResult = await handlePostPaymentUserAccount(updatedContract);
 
-    // Update user subscription based on product type (only for active users)
-    const subscriptionMap = {
-      basic: "Basic",
-      script: "Script",
-      diamond: "Diamond",
-      infinity: "Infinity",
-      "investment-advising": "Diamond",
-      "trading-tutor": "Basic",
-      ultimate: "Infinity",
-    };
+    // Get the actual plan from database to use its displayName
+    const MembershipPlan = require('../../subscription/models/membershipPlan.model');
+    let actualPlan = null;
 
-    const newSubscription = subscriptionMap[normalizedProductType];
-    
+    // Determine subscription name from product pricing configuration
+    let newSubscription;
+    if (typeof productInfo.monthly === 'object' && productInfo.monthly.name) {
+      // For products with nested pricing structure (e.g., script, investment-advising)
+      newSubscription = productInfo.monthly.name;
+    } else if (productInfo.name) {
+      // For products with direct pricing (e.g., basic, diamond, infinity)
+      newSubscription = productInfo.name;
+    } else {
+      // Last resort fallback - use normalized product type
+      newSubscription = normalizedProductType.charAt(0).toUpperCase() + normalizedProductType.slice(1);
+    }
+    console.log(`💳 Subscription determined from pricing config: "${newSubscription}" (productType: "${contract.productType}", normalized: "${normalizedProductType}")`);
+
+    try {
+      // Try to find the plan by normalized product type for database linkage
+      actualPlan = await MembershipPlan.findOne({
+        name: normalizedProductType,
+        isActive: { $ne: false }
+      }).lean();
+
+      if (actualPlan) {
+        // If we found the plan in DB, use its displayName if available
+        if (actualPlan.displayName) {
+          newSubscription = actualPlan.displayName;
+          console.log(`✅ Found plan in database: "${actualPlan.name}" → displayName: "${actualPlan.displayName}"`);
+        }
+      } else {
+        console.log(`⚠️ Plan not found in database for "${normalizedProductType}", using pricing config name: "${newSubscription}"`);
+      }
+    } catch (error) {
+      console.error("❌ Error fetching plan from database:", error.message);
+      console.log(`⚠️ Using pricing config name as fallback: "${newSubscription}"`);
+    }
+
     // Update user subscription if user exists and is active
     if (accountResult.user && !accountResult.user.isPendingUser && newSubscription) {
       await User.findByIdAndUpdate(accountResult.user._id, {
         subscription: newSubscription,
+        subscriptionStatus: "active",
+        subscriptionStartDate: startDate,
+        subscriptionEndDate: endDate,
+        subscriptionPlanId: actualPlan ? actualPlan._id : null,
+        billingCycle: subscriptionType === "yearly" ? "yearly" : "monthly",
+        lastPaymentAmount: price,
       });
       console.log("✅ User subscription updated to:", newSubscription);
+
+      // Refresh user data to get updated subscription for transaction
+      accountResult.user = await User.findById(accountResult.user._id);
+    }
+
+    // Create transaction record
+    try {
+      const paymentWebhook = require('../../controllers/paymentWebhook.controller');
+
+      const paymentData = {
+        provider: 'stripe',
+        transactionId: paymentIntentId,
+        amount: price,
+        currency: 'usd',
+        status: 'succeeded',
+        paymentMethod: { type: 'card' },
+        responseMessage: 'Stripe payment completed'
+      };
+
+      const orderData = {
+        contractId: contractId,
+        productType: contract.productType,
+        productName: newSubscription || productInfo.name, // Use actual plan name
+        plan: `${newSubscription || productInfo.name} ${subscriptionType === 'yearly' ? 'Yearly' : 'Monthly'} Subscription`,
+        subscriptionType: 'one-time',
+        paymentMethod: 'stripe',
+        items: [{
+          id: normalizedProductType,
+          name: `${newSubscription || productInfo.name} ${subscriptionType === 'yearly' ? 'Yearly' : 'Monthly'} Subscription`,
+          quantity: 1,
+          price: price
+        }]
+      };
+
+      // Use the refreshed user data with updated subscription
+      const transactionUser = accountResult.user || (userId ? await User.findById(userId) : null);
+
+      if (transactionUser) {
+        await paymentWebhook.handleOneTimePayment(paymentData, transactionUser, orderData);
+        console.log("✅ Transaction record created for user:", transactionUser._id);
+      } else {
+        console.warn("⚠️ No user found for transaction record");
+      }
+    } catch (transactionError) {
+      console.error("❌ Failed to create transaction record:", transactionError);
+      // Don't fail the payment confirmation if transaction creation fails
     }
 
     res.json({

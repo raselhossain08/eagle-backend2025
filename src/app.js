@@ -71,10 +71,8 @@ const wordpressRoutes = require("./wordpress/routes/wordpress.routes");
 const errorHandler = require("./middlewares/errorHandler");
 const requestLogger = require("./middlewares/requestLogger");
 const config = require("./config/environment");
-const dotenv = require("dotenv");
 
-// Load environment variables
-dotenv.config();
+// Environment variables already loaded by index.js
 
 // Init app first
 const app = express();

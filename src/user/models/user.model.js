@@ -87,7 +87,7 @@ const userSchema = new mongoose.Schema(
     // Subscription Management
     subscription: {
       type: String,
-      enum: ["None", "Basic", "Diamond", "Infinity", "Script", "Custom"],
+      enum: ["None", "Basic", "Diamond", "Infinity", "Script", "Custom", "Investment Advising", "Trading Tutor", "Eagle Ultimate"],
       default: "None",
     },
     subscriptionStatus: {
