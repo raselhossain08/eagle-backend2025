@@ -819,7 +819,7 @@ exports.confirmStripePayment = async (req, res) => {
     const userId = req.user ? req.user.id : null; // Support guest users
 
     console.log(
-      "Confirming Stripe payment:",
+      "Confirming payment:",
       paymentIntentId,
       "for contract:",
       contractId,
@@ -851,39 +851,51 @@ exports.confirmStripePayment = async (req, res) => {
       });
     }
 
-    // Retrieve payment intent from Stripe
-    const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
-    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+    // Check if this is a free subscription (paymentIntentId starts with 'free_')
+    const isFreeSubscription = paymentIntentId && paymentIntentId.toString().startsWith('free_');
 
-    if (paymentIntent.status !== "succeeded") {
-      return res.status(400).json({
-        success: false,
-        message: "Payment not completed",
-        status: paymentIntent.status,
+    let paymentIntent;
+    let actualAmountPaid = 0;
+    let subscriptionType = "monthly"; // Default
+
+    if (isFreeSubscription) {
+      console.log("✅ Processing free subscription");
+      // For free subscriptions, no Stripe payment intent exists
+      // Set default values
+      actualAmountPaid = 0;
+      subscriptionType = "monthly"; // Free subscriptions default to monthly
+    } else {
+      // Retrieve payment intent from Stripe for paid subscriptions
+      const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+      paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+
+      if (paymentIntent.status !== "succeeded") {
+        return res.status(400).json({
+          success: false,
+          message: "Payment not completed",
+          status: paymentIntent.status,
+        });
+      }
+
+      // Get subscription type from payment intent metadata
+      subscriptionType = paymentIntent.metadata.subscriptionType || "monthly";
+
+      // ✅ USE ACTUAL AMOUNT PAID FROM STRIPE (includes discounts)
+      // Convert from cents to dollars
+      actualAmountPaid = paymentIntent.amount / 100;
+
+      console.log("💰 Using actual amount paid from Stripe:", {
+        amountInCents: paymentIntent.amount,
+        amountInDollars: actualAmountPaid,
+        contractId: contractId,
+        subscriptionType: subscriptionType
       });
     }
-
-    // Get subscription type from payment intent metadata
-    const subscriptionType =
-      paymentIntent.metadata.subscriptionType || "monthly";
 
     // Get pricing information with normalized product type
     const normalizedProductType = normalizeProductType(contract.productType);
     const productInfo = PRODUCT_PRICING[normalizedProductType];
-
-    // ✅ USE ACTUAL AMOUNT PAID FROM STRIPE (includes discounts)
-    // Convert from cents to dollars
-    const actualAmountPaid = paymentIntent.amount / 100;
-    const price = actualAmountPaid;
-
-    console.log("💰 Using actual amount paid from Stripe:", {
-      amountInCents: paymentIntent.amount,
-      amountInDollars: actualAmountPaid,
-      contractId: contractId,
-      subscriptionType: subscriptionType
-    });
-
-    // Calculate subscription dates
+    const price = actualAmountPaid;      // Calculate subscription dates
     const startDate = new Date();
     const endDate = calculateSubscriptionEndDate(startDate, subscriptionType);
 
@@ -893,7 +905,7 @@ exports.confirmStripePayment = async (req, res) => {
       {
         status: "completed",
         paymentId: paymentIntentId,
-        paymentProvider: "stripe",
+        paymentProvider: isFreeSubscription ? "free" : "stripe",
         paymentCompletedAt: new Date(),
         subscriptionType: subscriptionType,
         subscriptionPrice: price,
@@ -903,7 +915,7 @@ exports.confirmStripePayment = async (req, res) => {
       { new: true }
     );
 
-    console.log("✅ Stripe payment completed, processing user account...");
+    console.log(`✅ ${isFreeSubscription ? 'Free subscription' : 'Stripe payment'} completed, processing user account...`);
 
     // Handle post-payment user account creation/update
     const accountResult = await handlePostPaymentUserAccount(updatedContract);
@@ -980,7 +992,7 @@ exports.confirmStripePayment = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error("Stripe Payment Confirmation Error:", error);
+    console.error("Payment Confirmation Error:", error);
     res.status(500).json({
       success: false,
       message: "Failed to confirm payment",

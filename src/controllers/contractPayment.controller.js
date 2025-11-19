@@ -1110,7 +1110,7 @@ exports.confirmStripePayment = async (req, res) => {
     const userId = req.user ? req.user.id : null; // Support guest users
 
     console.log(
-      "Confirming Stripe payment:",
+      "Confirming payment:",
       paymentIntentId,
       "for contract:",
       contractId,
@@ -1146,21 +1146,31 @@ exports.confirmStripePayment = async (req, res) => {
       });
     }
 
-    // Retrieve payment intent from Stripe
-    const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
-    const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+    // Check if this is a free subscription (paymentIntentId starts with 'free_')
+    const isFreeSubscription = paymentIntentId && paymentIntentId.toString().startsWith('free_');
 
-    if (paymentIntent.status !== "succeeded") {
-      return res.status(400).json({
-        success: false,
-        message: "Payment not completed",
-        status: paymentIntent.status,
-      });
+    let paymentIntent;
+    let subscriptionType = "monthly"; // Default
+
+    if (isFreeSubscription) {
+      console.log("✅ Processing free subscription");
+      // For free subscriptions, no Stripe payment intent exists
+    } else {
+      // Retrieve payment intent from Stripe for paid subscriptions
+      const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+      paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+
+      if (paymentIntent.status !== "succeeded") {
+        return res.status(400).json({
+          success: false,
+          message: "Payment not completed",
+          status: paymentIntent.status,
+        });
+      }
+
+      // Get subscription type from payment intent metadata
+      subscriptionType = paymentIntent.metadata.subscriptionType || "monthly";
     }
-
-    // Get subscription type from payment intent metadata
-    const subscriptionType =
-      paymentIntent.metadata.subscriptionType || "monthly";
 
     console.log("📄 Contract Product Type (Stripe):", {
       originalProductType: contract.productType,
@@ -1208,7 +1218,11 @@ exports.confirmStripePayment = async (req, res) => {
 
     // Use frontend amount if provided (trusted source after discount validation)
     let finalPrice;
-    if (amount && parseFloat(amount) > 0) {
+    if (isFreeSubscription) {
+      // Free subscriptions have zero cost
+      finalPrice = 0;
+      console.log("💰 Free subscription - no payment required");
+    } else if (amount && parseFloat(amount) > 0) {
       finalPrice = parseFloat(amount);
       console.log(`💰 Using frontend amount in Stripe confirmation (already discounted): $${finalPrice}`);
       // Validate that frontend amount makes sense
@@ -1234,7 +1248,7 @@ exports.confirmStripePayment = async (req, res) => {
     const updateData = {
       status: "completed",
       paymentId: paymentIntentId,
-      paymentProvider: "stripe",
+      paymentProvider: isFreeSubscription ? "free" : "stripe",
       paymentCompletedAt: new Date(),
       subscriptionType: subscriptionType,
       subscriptionPrice: finalPrice, // Save discounted price
@@ -1255,7 +1269,7 @@ exports.confirmStripePayment = async (req, res) => {
       { new: true }
     );
 
-    console.log("✅ Stripe payment completed, processing user account...");
+    console.log(`✅ ${isFreeSubscription ? 'Free subscription' : 'Stripe payment'} completed, processing user account...`);
 
     // Handle post-payment user account creation/update
     const accountResult = await handlePostPaymentUserAccount(updatedContract);
@@ -1434,7 +1448,7 @@ exports.confirmStripePayment = async (req, res) => {
       }
     });
   } catch (error) {
-    console.error("Stripe Payment Confirmation Error:", error);
+    console.error("Payment Confirmation Error:", error);
     res.status(500).json({
       success: false,
       message: "Failed to confirm payment",
