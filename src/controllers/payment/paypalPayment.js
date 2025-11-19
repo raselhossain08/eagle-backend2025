@@ -1,4 +1,4 @@
-const { paypal } = require("../../config/paymentConfig");
+const { paypal, isPayPalConfigured } = require("../../config/paymentConfig");
 
 exports.processPaypalPayment = (req, res) => {
   const { amount } = req.body;
@@ -7,6 +7,13 @@ exports.processPaypalPayment = (req, res) => {
     return res
       .status(400)
       .json({ status: "failure", error: "Amount is required." });
+  }
+
+  if (!isPayPalConfigured()) {
+    return res.status(503).json({
+      status: "failure",
+      error: "PayPal is not configured. Please configure PayPal in the admin settings."
+    });
   }
 
   const create_payment_json = {

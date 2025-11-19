@@ -1,26 +1,61 @@
 const PaymentSettings = require('../models/PaymentSettings');
 
-// Get payment settings
+// Get public payment settings (publishable keys only - no auth required)
+exports.getPublicPaymentSettings = async (req, res) => {
+    try {
+        const settings = await PaymentSettings.getSettings();
+
+        // Return only public/publishable keys (safe for frontend)
+        const publicSettings = {
+            paypal: {
+                enabled: settings.paypal.enabled,
+                mode: settings.paypal.mode,
+                clientId: settings.paypal.clientId || '', // PayPal client ID is public
+                configured: !!(settings.paypal.clientId && settings.paypal.clientSecret)
+            },
+            stripe: {
+                enabled: settings.stripe.enabled,
+                mode: settings.stripe.mode,
+                publishableKey: settings.stripe.publishableKey || '', // Only publishable key (public)
+                configured: !!settings.stripe.publishableKey
+            }
+        };
+
+        res.status(200).json({
+            success: true,
+            data: publicSettings
+        });
+    } catch (error) {
+        console.error('Get Public Payment Settings Error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to fetch payment settings',
+            error: error.message
+        });
+    }
+};
+
+// Get payment settings (admin only - full credentials)
 exports.getPaymentSettings = async (req, res) => {
     try {
         const settings = await PaymentSettings.getSettings();
 
-        // Don't send full secrets to frontend
-        const sanitizedSettings = {
+        // Return full credentials for admin to edit (since this is admin-only endpoint)
+        const responseSettings = {
             paypal: {
                 enabled: settings.paypal.enabled,
                 mode: settings.paypal.mode,
-                clientId: settings.paypal.clientId ? '***' + settings.paypal.clientId.slice(-4) : '',
-                clientSecret: settings.paypal.clientSecret ? '***' + settings.paypal.clientSecret.slice(-4) : '',
+                clientId: settings.paypal.clientId || '',
+                clientSecret: settings.paypal.clientSecret || '',
                 apiUrl: settings.paypal.apiUrl,
                 configured: !!(settings.paypal.clientId && settings.paypal.clientSecret)
             },
             stripe: {
                 enabled: settings.stripe.enabled,
                 mode: settings.stripe.mode,
-                publishableKey: settings.stripe.publishableKey ? '***' + settings.stripe.publishableKey.slice(-4) : '',
-                secretKey: settings.stripe.secretKey ? '***' + settings.stripe.secretKey.slice(-4) : '',
-                webhookSecret: settings.stripe.webhookSecret ? '***' + settings.stripe.webhookSecret.slice(-4) : '',
+                publishableKey: settings.stripe.publishableKey || '',
+                secretKey: settings.stripe.secretKey || '',
+                webhookSecret: settings.stripe.webhookSecret || '',
                 configured: !!(settings.stripe.publishableKey && settings.stripe.secretKey)
             },
             lastUpdated: settings.lastUpdated
@@ -28,7 +63,7 @@ exports.getPaymentSettings = async (req, res) => {
 
         res.status(200).json({
             success: true,
-            data: sanitizedSettings
+            data: responseSettings
         });
     } catch (error) {
         console.error('Get Payment Settings Error:', error);
@@ -89,15 +124,15 @@ exports.updatePaymentSettings = async (req, res) => {
             if (stripe.publishableKey) process.env.STRIPE_PUBLISHABLE_KEY = stripe.publishableKey;
         }
 
-        // Reconfigure payment services
-        if (paypal && (paypal.clientId || paypal.clientSecret || paypal.mode)) {
-            const paypalSdk = require('paypal-rest-sdk');
-            paypalSdk.configure({
-                mode: settings.paypal.mode,
-                client_id: settings.paypal.clientId,
-                client_secret: settings.paypal.clientSecret
-            });
-        }
+        // Reconfigure payment services dynamically
+        const paymentConfig = require('../config/paymentConfig');
+        await paymentConfig.reconfigurePaymentGateways();
+
+        // Clear cache in dynamic config
+        const DynamicPaymentConfig = require('../config/dynamicPaymentConfig');
+        DynamicPaymentConfig.clearCache();
+
+        console.log('✅ Payment gateways reconfigured successfully');
 
         // Return sanitized settings
         const sanitizedSettings = {
@@ -175,20 +210,29 @@ exports.testPaymentConnection = async (req, res) => {
                 });
             }
 
-            // Test Stripe connection
+            // Test Stripe connection with a lightweight API call
             const stripe = require('stripe')(settings.stripe.secretKey);
-            const account = await stripe.accounts.retrieve();
 
-            return res.status(200).json({
-                success: true,
-                message: 'Stripe connection successful',
-                data: {
-                    mode: settings.stripe.mode,
-                    accountId: account.id,
-                    status: 'connected'
-                }
-            });
+            try {
+                // Use balance retrieve - attempt with any key type
+                const balance = await stripe.balance.retrieve();
 
+                return res.status(200).json({
+                    success: true,
+                    message: 'Stripe connection successful',
+                    data: {
+                        mode: settings.stripe.mode,
+                        currency: balance.available?.[0]?.currency || 'usd',
+                        status: 'connected'
+                    }
+                });
+            } catch (stripeError) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Stripe API Error: ${stripeError.message}`,
+                    error: stripeError.message
+                });
+            }
         } else {
             return res.status(400).json({
                 success: false,

@@ -14,6 +14,12 @@ const startServer = async () => {
     await connectDB();
     console.log("✅ Database connected successfully");
 
+    // Initialize payment gateways from database
+    console.log("🔄 Initializing payment gateways...");
+    const { initializePaymentGateways } = require("./src/config/paymentConfig");
+    await initializePaymentGateways();
+    console.log("✅ Payment gateways initialized");
+
     // Then require and start the app
     const app = require("./src/app");
 

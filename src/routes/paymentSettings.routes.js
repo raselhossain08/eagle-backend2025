@@ -9,7 +9,13 @@ const router = express.Router();
 const paymentSettingsController = require('../controllers/paymentSettingsController');
 const { protect, restrictTo, adminOnly } = require('../middlewares/auth.middleware');
 
-// Get payment settings (admin only)
+// Get public payment settings (no auth required - publishable keys only)
+router.get(
+    '/public',
+    paymentSettingsController.getPublicPaymentSettings
+);
+
+// Get payment settings (admin only - full credentials)
 router.get(
     '/',
     protect,

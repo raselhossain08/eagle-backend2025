@@ -1,9 +1,18 @@
-const { stripeConfig } = require("../../config/paymentConfig");
+const { getStripeConfig } = require("../../config/paymentConfig");
 
 
 exports.processStripePayment = async (req, res) => {
   try {
     const { amount, stripeToken, email, name } = req.body;
+
+    const stripeConfig = getStripeConfig();
+
+    if (!stripeConfig) {
+      return res.status(503).json({
+        status: "failure",
+        error: "Stripe is not configured. Please configure Stripe in the admin settings."
+      });
+    }
 
     const customer = await stripeConfig.customers.create({
       email,
