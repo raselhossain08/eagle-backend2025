@@ -495,9 +495,12 @@ const updatePaymentStatus = async (req, res) => {
         const endDate = new Date();
         endDate.setDate(endDate.getDate() + durationDays);
 
-        // Update user subscription with dates
+        // ✅ Use exact product name from contract (what user actually purchased)
+        const exactPlanName = contract.productName || newSubscription;
+
+        // Update user subscription with dates and exact plan name
         await User.findByIdAndUpdate(contract.userId, {
-          subscription: newSubscription,
+          subscription: exactPlanName, // ✅ Store exact product name user purchased
           subscriptionStatus: 'active',
           subscriptionStartDate: startDate,
           subscriptionEndDate: endDate,

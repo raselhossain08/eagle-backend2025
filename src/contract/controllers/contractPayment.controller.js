@@ -690,17 +690,24 @@ exports.captureOrder = async (req, res) => {
 // 💳 Create Stripe Payment Intent for Contract Payment
 exports.createStripePaymentIntent = async (req, res) => {
   try {
-    const { contractId, subscriptionType = "monthly" } = req.body; // Default to monthly
+    const {
+      contractId,
+      subscriptionType = "monthly",
+      discountCode,
+      discountAmount,
+      finalAmount
+    } = req.body; // Extract discount info from request
     const userId = req.user ? req.user.id : null; // Support guest users
 
-    console.log(
-      "Creating Stripe payment intent for contract:",
-      contractId,
-      "subscription:",
-      subscriptionType,
-      "userId:",
-      userId || "guest"
-    );
+    console.log("🔍 BACKEND PAYMENT INTENT DEBUG:");
+    console.log("  📦 Contract ID:", contractId);
+    console.log("  🔄 Subscription Type:", subscriptionType);
+    console.log("  👤 User ID:", userId || "guest");
+    console.log("  🎟️ Discount Code:", discountCode || "none");
+    console.log("  💵 Discount Amount:", discountAmount, typeof discountAmount);
+    console.log("  💰 Final Amount:", finalAmount, typeof finalAmount);
+    console.log("  ❓ finalAmount provided?", finalAmount !== undefined && finalAmount !== null);
+    console.log("  📋 Full request body:", JSON.stringify(req.body, null, 2));
 
     // Validate contract exists - for guest users, check by contractId only
     let contract;
@@ -741,30 +748,68 @@ exports.createStripePaymentIntent = async (req, res) => {
       });
     }
 
-    // Get the price based on subscription type, handling different pricing structures
+    // Get the price - use finalAmount if provided (with discount), otherwise use original price
     let price;
-    if (typeof productInfo.monthly === "object") {
-      // For products with nested pricing structure (script, investment-advising, etc.)
-      price =
-        subscriptionType === "yearly"
-          ? parseFloat(productInfo.yearly.price)
-          : parseFloat(productInfo.monthly.price);
-    } else {
-      // For products with direct pricing (basic, diamond, infinity)
-      price =
-        subscriptionType === "yearly"
-          ? productInfo.yearly
-          : productInfo.monthly;
+    let originalPrice; // Store original price for logging
+
+    if (finalAmount !== undefined && finalAmount !== null && finalAmount !== "") {
+      // Use the discounted final amount provided by frontend
+      // Handle both string and number types
+      const parsedFinalAmount = typeof finalAmount === "string"
+        ? parseFloat(finalAmount.replace(/[$,]/g, ""))
+        : parseFloat(finalAmount);
+
+      if (!isNaN(parsedFinalAmount)) {
+        price = parsedFinalAmount;
+        console.log("✅ Using discounted finalAmount:", price, "(parsed from:", finalAmount, typeof finalAmount, ")");
+      } else {
+        console.error("⚠️ finalAmount could not be parsed:", finalAmount, typeof finalAmount);
+        // Fall through to default pricing
+        price = null;
+      }
     }
+
+    if (price === null || price === undefined) {
+      // Fall back to original pricing from PRODUCT_PRICING
+      if (typeof productInfo.monthly === "object") {
+        // For products with nested pricing structure (script, investment-advising, etc.)
+        price =
+          subscriptionType === "yearly"
+            ? parseFloat(productInfo.yearly.price)
+            : parseFloat(productInfo.monthly.price);
+      } else {
+        // For products with direct pricing (basic, diamond, infinity)
+        price =
+          subscriptionType === "yearly"
+            ? productInfo.yearly
+            : productInfo.monthly;
+      }
+      console.log("📊 Using original price from PRODUCT_PRICING:", price);
+    }
+
+    // Store original price for metadata (useful for tracking discounts)
+    if (typeof productInfo.monthly === "object") {
+      originalPrice = subscriptionType === "yearly"
+        ? parseFloat(productInfo.yearly.price)
+        : parseFloat(productInfo.monthly.price);
+    } else {
+      originalPrice = subscriptionType === "yearly"
+        ? productInfo.yearly
+        : productInfo.monthly;
+    }
+
     const subscriptionTypeText =
       subscriptionType === "yearly" ? "Yearly" : "Monthly";
 
     // Create Stripe payment intent
     const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 
+    // Use contract's actual product name if available, otherwise fall back to productInfo.name
+    const actualProductName = contract.productName || productInfo.name;
+
     // Create Stripe payment intent with proper branding
-    const productDescription = PAYMENT_BRANDING.getProductDescription(productInfo, subscriptionType);
-    const statementSuffix = PAYMENT_BRANDING.getStatementDescriptorSuffix(productInfo.name);
+    const productDescription = PAYMENT_BRANDING.getProductDescription({ name: actualProductName }, subscriptionType);
+    const statementSuffix = PAYMENT_BRANDING.getStatementDescriptorSuffix(actualProductName);
 
     // Get email for receipt - from authenticated user or contract
     const receiptEmail = PAYMENT_BRANDING.stripe.receiptEmail
@@ -773,6 +818,13 @@ exports.createStripePaymentIntent = async (req, res) => {
 
     console.log("💳 Creating Stripe payment intent:", {
       amount: Math.round(parseFloat(price) * 100),
+      originalPrice: originalPrice,
+      finalPrice: price,
+      discountCode: discountCode || "none",
+      discountAmount: discountAmount || 0,
+      actualProductName: actualProductName,
+      contractProductName: contract.productName,
+      fallbackProductInfoName: productInfo.name,
       contractId: contract._id,
       userId: userId || "guest",
       receiptEmail,
@@ -781,7 +833,7 @@ exports.createStripePaymentIntent = async (req, res) => {
     });
 
     const paymentIntent = await stripe.paymentIntents.create({
-      amount: Math.round(parseFloat(price) * 100), // Convert to cents
+      amount: Math.round(parseFloat(price) * 100), // Convert to cents (using discounted price if provided)
       currency: "usd",
       metadata: {
         contractId: contract._id.toString(),
@@ -789,7 +841,12 @@ exports.createStripePaymentIntent = async (req, res) => {
         productType: contract.productType,
         subscriptionType: subscriptionType,
         ...PAYMENT_BRANDING.stripe.metadata,
-        productName: productInfo.name,
+        productName: actualProductName, // ✅ Use actual product name from contract
+        // Add discount information to metadata
+        ...(discountCode && { discountCode }),
+        ...(discountAmount && { discountAmount: discountAmount.toString() }),
+        ...(originalPrice !== price && { originalPrice: originalPrice.toString() }),
+        ...(finalAmount !== undefined && finalAmount !== null && { finalAmount: finalAmount.toString() }),
       },
       description: productDescription,
       statement_descriptor: PAYMENT_BRANDING.stripe.statementDescriptor,
