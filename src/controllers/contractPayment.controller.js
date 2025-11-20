@@ -367,6 +367,40 @@ exports.createContractOrder = async (req, res) => {
       amount || "not provided"
     );
 
+    // First, check if the contract exists at all
+    const anyContract = await SignedContract.findOne({ _id: contractId });
+
+    if (!anyContract) {
+      console.error("❌ Contract not found in database:", contractId);
+      return res.status(404).json({
+        success: false,
+        message: "Contract not found. Please sign the contract first.",
+      });
+    }
+
+    console.log("📋 Contract found:", {
+      id: anyContract._id,
+      status: anyContract.status,
+      userId: anyContract.userId,
+      email: anyContract.email,
+      productType: anyContract.productType,
+      isGuestContract: anyContract.isGuestContract,
+    });
+
+    // Check if contract status is not payment_pending
+    if (anyContract.status !== "payment_pending") {
+      console.error("❌ Contract status is not payment_pending:", {
+        contractId,
+        currentStatus: anyContract.status,
+        expectedStatus: "payment_pending",
+      });
+      return res.status(400).json({
+        success: false,
+        message: `Contract has already been processed. Current status: ${anyContract.status}`,
+        currentStatus: anyContract.status,
+      });
+    }
+
     // Validate contract exists - for guest users, check by contractId only
     let contract;
     if (userId) {
@@ -376,12 +410,21 @@ exports.createContractOrder = async (req, res) => {
         userId,
         status: "payment_pending",
       });
+
+      if (!contract) {
+        console.error("❌ Contract ownership mismatch:", {
+          contractId,
+          requestingUserId: userId,
+          contractUserId: anyContract.userId,
+        });
+        return res.status(403).json({
+          success: false,
+          message: "You don't have permission to access this contract.",
+        });
+      }
     } else {
       // Guest user - just check contract exists and is payment pending
-      contract = await SignedContract.findOne({
-        _id: contractId,
-        status: "payment_pending",
-      });
+      contract = anyContract;
     }
 
     if (!contract) {
@@ -556,6 +599,39 @@ exports.captureContractOrder = async (req, res) => {
       amount || "not provided"
     );
 
+    // First, check if the contract exists at all
+    const anyContract = await SignedContract.findOne({ _id: contractId });
+
+    if (!anyContract) {
+      console.error("❌ Contract not found in database during capture:", contractId);
+      return res.status(404).json({
+        success: false,
+        message: "Contract not found. Cannot complete payment.",
+      });
+    }
+
+    console.log("📋 Contract found for capture:", {
+      id: anyContract._id,
+      status: anyContract.status,
+      userId: anyContract.userId,
+      email: anyContract.email,
+      productType: anyContract.productType,
+    });
+
+    // Check if contract status is not payment_pending
+    if (anyContract.status !== "payment_pending") {
+      console.error("❌ Contract status is not payment_pending during capture:", {
+        contractId,
+        currentStatus: anyContract.status,
+        expectedStatus: "payment_pending",
+      });
+      return res.status(400).json({
+        success: false,
+        message: `Contract has already been processed. Current status: ${anyContract.status}`,
+        currentStatus: anyContract.status,
+      });
+    }
+
     // Validate contract - for guest users, check by contractId only
     let contract;
     if (userId) {
@@ -565,12 +641,21 @@ exports.captureContractOrder = async (req, res) => {
         userId,
         status: "payment_pending",
       });
+
+      if (!contract) {
+        console.error("❌ Contract ownership mismatch during capture:", {
+          contractId,
+          requestingUserId: userId,
+          contractUserId: anyContract.userId,
+        });
+        return res.status(403).json({
+          success: false,
+          message: "You don't have permission to access this contract.",
+        });
+      }
     } else {
       // Guest user - just check contract exists and is payment pending
-      contract = await SignedContract.findOne({
-        _id: contractId,
-        status: "payment_pending",
-      });
+      contract = anyContract;
     }
 
     if (!contract) {
@@ -616,7 +701,7 @@ exports.captureContractOrder = async (req, res) => {
 
       // Use frontend amount if provided (trusted source after discount validation)
       let finalPrice;
-      if (amount && parseFloat(amount) > 0) {
+      if (amount && parseFloat(amount) >= 0) {
         finalPrice = parseFloat(amount);
         console.log(`💰 Using frontend amount in capture (already discounted): $${finalPrice}`);
         // Validate that frontend amount makes sense
@@ -629,10 +714,18 @@ exports.captureContractOrder = async (req, res) => {
         // Fallback: Apply discount to calculated price
         finalPrice = price;
         if (discountAmount && discountAmount > 0) {
-          finalPrice = price - discountAmount;
+          finalPrice = Math.max(0, price - discountAmount);
           console.log(`💰 Applied discount in capture: $${price} - $${discountAmount} = $${finalPrice}`);
         }
       }
+
+      // CRITICAL: Ensure finalPrice is never negative
+      if (finalPrice < 0) {
+        console.error(`❌ CRITICAL: finalPrice is negative: ${finalPrice}. Setting to 0.`);
+        finalPrice = 0;
+      }
+
+      console.log(`✅ Final validated price for PayPal capture: $${finalPrice}`);
 
       // Calculate subscription dates
       const startDate = new Date();
@@ -717,17 +810,32 @@ exports.captureContractOrder = async (req, res) => {
 
         console.log("📝 Updating user with data:", userUpdateData);
 
+        // Ensure we're incrementing with a positive value
+        const incrementAmount = Math.max(0, finalPrice);
+        if (incrementAmount !== finalPrice) {
+          console.error(`❌ WARNING: Corrected increment amount from ${finalPrice} to ${incrementAmount}`);
+        }
+
+        console.log(`💰 Incrementing totalSpent and lifetimeValue by: $${incrementAmount}`);
+
         const updatedUser = await User.findByIdAndUpdate(
           accountResult.user._id,
           {
             $set: userUpdateData,
             $inc: {
-              totalSpent: finalPrice,
-              lifetimeValue: finalPrice
+              totalSpent: incrementAmount,
+              lifetimeValue: incrementAmount
             }
           },
           { new: true }
         );
+
+        console.log(`✅ User financial data updated:`, {
+          userId: updatedUser._id,
+          totalSpent: updatedUser.totalSpent,
+          lifetimeValue: updatedUser.lifetimeValue,
+          lastPaymentAmount: updatedUser.lastPaymentAmount
+        });
 
         console.log("✅ User subscription updated:", {
           userId: updatedUser._id,
@@ -1280,27 +1388,50 @@ exports.confirmStripePayment = async (req, res) => {
 
     // Use frontend amount if provided (trusted source after discount validation)
     let finalPrice;
+
+    console.log("💰 Stripe Amount Calculation Debug:", {
+      isFreeSubscription,
+      frontendAmount: amount,
+      frontendAmountParsed: amount ? parseFloat(amount) : null,
+      basePrice: price,
+      discountCode,
+      discountAmount,
+      subscriptionType
+    });
+
     if (isFreeSubscription) {
       // Free subscriptions have zero cost
       finalPrice = 0;
       console.log("💰 Free subscription - no payment required");
-    } else if (amount && parseFloat(amount) > 0) {
-      finalPrice = parseFloat(amount);
-      console.log(`💰 Using frontend amount in Stripe confirmation (already discounted): $${finalPrice}`);
+    } else if (amount !== undefined && amount !== null) {
+      // Frontend sends amount in cents, convert to dollars
+      const amountInDollars = parseFloat(amount) / 100;
+      finalPrice = amountInDollars;
+      console.log(`💰 Using frontend amount in Stripe confirmation: ${amount} cents = $${finalPrice}`);
+
       // Validate that frontend amount makes sense
       const calculatedPrice = discountAmount && discountAmount > 0 ? price - discountAmount : price;
       const difference = Math.abs(finalPrice - calculatedPrice);
       if (difference > 0.01) {
-        console.warn(`⚠️ Frontend amount ($${finalPrice}) differs from calculated ($${calculatedPrice})`);
+        console.warn(`⚠️ Frontend amount ($${finalPrice}) differs from calculated ($${calculatedPrice}). Using frontend amount.`);
       }
     } else {
       // Fallback: Apply discount to calculated price
       finalPrice = price;
       if (discountAmount && discountAmount > 0) {
-        finalPrice = price - discountAmount;
+        finalPrice = Math.max(0, price - discountAmount);
         console.log(`💰 Applied discount in Stripe confirmation: $${price} - $${discountAmount} = $${finalPrice}`);
       }
+      console.log(`💰 Using calculated price: $${finalPrice}`);
     }
+
+    // CRITICAL: Ensure finalPrice is never negative
+    if (finalPrice < 0) {
+      console.error(`❌ CRITICAL: finalPrice is negative: ${finalPrice}. Setting to 0.`);
+      finalPrice = 0;
+    }
+
+    console.log(`✅ Final validated price for Stripe: $${finalPrice}`);
 
     // Calculate subscription dates
     const startDate = new Date();
@@ -1386,13 +1517,21 @@ exports.confirmStripePayment = async (req, res) => {
 
       console.log("📝 Updating user with data (Stripe):", userUpdateData);
 
+      // Ensure we're incrementing with a positive value
+      const incrementAmount = Math.max(0, finalPrice);
+      if (incrementAmount !== finalPrice) {
+        console.error(`❌ WARNING: Corrected increment amount from ${finalPrice} to ${incrementAmount}`);
+      }
+
+      console.log(`💰 Incrementing totalSpent and lifetimeValue by: $${incrementAmount}`);
+
       const updatedUser = await User.findByIdAndUpdate(
         accountResult.user._id,
         {
           $set: userUpdateData,
           $inc: {
-            totalSpent: finalPrice,
-            lifetimeValue: finalPrice
+            totalSpent: incrementAmount,
+            lifetimeValue: incrementAmount
           }
         },
         { new: true }
@@ -1402,8 +1541,22 @@ exports.confirmStripePayment = async (req, res) => {
         userId: updatedUser._id,
         subscription: updatedUser.subscription,
         subscriptionStatus: updatedUser.subscriptionStatus,
+        subscriptionStartDate: updatedUser.subscriptionStartDate,
+        subscriptionEndDate: updatedUser.subscriptionEndDate,
+        lastPaymentAmount: updatedUser.lastPaymentAmount,
+        totalSpent: updatedUser.totalSpent,
+        lifetimeValue: updatedUser.lifetimeValue,
+        billingCycle: updatedUser.billingCycle,
         isActive: updatedUser.isActive,
         isPendingUser: updatedUser.isPendingUser
+      });
+
+      console.log("💵 STRIPE PAYMENT SAVED TO DATABASE:", {
+        planName: updatedUser.subscription,
+        amountPaid: incrementAmount,
+        billingCycle: updatedUser.billingCycle,
+        totalSpentAfterUpdate: updatedUser.totalSpent,
+        subscriptionPeriod: `${updatedUser.subscriptionStartDate} to ${updatedUser.subscriptionEndDate}`
       });
 
       // Create or update Subscription record

@@ -299,27 +299,47 @@ exports.createContractOrder = async (req, res) => {
     );
 
     // Validate contract exists - for guest users, check by contractId only
+    // Accept both 'signed' and 'payment_pending' status
     let contract;
     if (userId) {
       // Authenticated user - check ownership
       contract = await SignedContract.findOne({
         _id: contractId,
         userId,
-        status: "payment_pending",
+        status: { $in: ["signed", "payment_pending"] },
       });
     } else {
-      // Guest user - just check contract exists and is payment pending
+      // Guest user - just check contract exists and is signed or payment pending
       contract = await SignedContract.findOne({
         _id: contractId,
-        status: "payment_pending",
+        status: { $in: ["signed", "payment_pending"] },
       });
     }
 
     if (!contract) {
+      console.error(`❌ Contract not found or already processed:`, {
+        contractId,
+        userId: userId || "guest",
+        message: "Contract must be in 'signed' or 'payment_pending' status"
+      });
       return res.status(404).json({
         success: false,
         message: "Contract not found or already processed",
       });
+    }
+
+    console.log(`✅ Contract found for PayPal order:`, {
+      contractId: contract._id,
+      status: contract.status,
+      productType: contract.productType,
+      email: contract.email
+    });
+
+    // Update contract status to payment_pending if it's still signed
+    if (contract.status === "signed") {
+      contract.status = "payment_pending";
+      await contract.save();
+      console.log("✅ Updated contract status to payment_pending");
     }
 
     // Get product pricing with normalized product type
@@ -467,11 +487,24 @@ exports.captureContractOrder = async (req, res) => {
     }
 
     if (!contract) {
+      console.error(`❌ Contract not found or not ready for payment capture:`, {
+        contractId,
+        orderId,
+        userId: userId || "guest",
+        message: "Contract must be in 'payment_pending' status"
+      });
       return res.status(404).json({
         success: false,
         message: "Contract not found or already processed",
       });
     }
+
+    console.log(`✅ Contract validated for PayPal capture:`, {
+      contractId: contract._id,
+      orderId,
+      status: contract.status,
+      productType: contract.productType
+    });
 
     const accessToken = await generateAccessToken();
 
@@ -1016,21 +1049,55 @@ exports.confirmStripePayment = async (req, res) => {
       console.log(`⚠️ Using pricing config name as fallback: "${newSubscription}"`);
     }
 
-    // Update user subscription if user exists and is active
-    if (accountResult.user && !accountResult.user.isPendingUser && newSubscription) {
-      await User.findByIdAndUpdate(accountResult.user._id, {
+    // Update user subscription if user exists (including pending users who just paid)
+    if (accountResult.user && newSubscription) {
+      // Ensure we're using a positive amount
+      const finalPrice = Math.max(0, price);
+      const incrementAmount = finalPrice;
+
+      console.log("📝 Updating user subscription with data:", {
+        userId: accountResult.user._id,
         subscription: newSubscription,
-        subscriptionStatus: "active",
-        subscriptionStartDate: startDate,
-        subscriptionEndDate: endDate,
         subscriptionPlanId: actualPlan ? actualPlan._id : null,
-        billingCycle: subscriptionType === "yearly" ? "yearly" : "monthly",
-        lastPaymentAmount: price,
+        price: finalPrice,
+        subscriptionType
       });
+
+      await User.findByIdAndUpdate(
+        accountResult.user._id,
+        {
+          $set: {
+            subscription: newSubscription,
+            subscriptionStatus: "active",
+            subscriptionStartDate: startDate,
+            subscriptionEndDate: endDate,
+            subscriptionPlanId: actualPlan ? actualPlan._id : null,
+            billingCycle: subscriptionType === "yearly" ? "yearly" : "monthly",
+            lastPaymentAmount: finalPrice,
+            isActive: true, // Activate user after payment
+            isPendingUser: false, // Clear pending status after payment
+          },
+          $inc: {
+            totalSpent: incrementAmount,
+            lifetimeValue: incrementAmount
+          }
+        }
+      );
       console.log("✅ User subscription updated to:", newSubscription);
+      console.log(`💰 Incremented totalSpent and lifetimeValue by: $${incrementAmount}`);
 
       // Refresh user data to get updated subscription
       accountResult.user = await User.findById(accountResult.user._id);
+
+      console.log("✅ User data after update:", {
+        userId: accountResult.user._id,
+        subscription: accountResult.user.subscription,
+        subscriptionStatus: accountResult.user.subscriptionStatus,
+        subscriptionPlanId: accountResult.user.subscriptionPlanId,
+        totalSpent: accountResult.user.totalSpent,
+        lifetimeValue: accountResult.user.lifetimeValue,
+        isPendingUser: accountResult.user.isPendingUser
+      });
     }
 
     // ✅ Transaction creation removed from backend
