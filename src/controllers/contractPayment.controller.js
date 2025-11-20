@@ -1085,20 +1085,30 @@ exports.createStripePaymentIntent = async (req, res) => {
       contract = await SignedContract.findOne({
         _id: contractId,
         userId,
-        status: "payment_pending",
       });
     } else {
-      // Guest user - just check contract exists and is payment pending
+      // Guest user - just check contract exists
       contract = await SignedContract.findOne({
         _id: contractId,
-        status: "payment_pending",
       });
     }
 
     if (!contract) {
+      console.error(`❌ Contract not found: ${contractId}, userId: ${userId || 'guest'}`);
       return res.status(404).json({
         success: false,
-        message: "Contract not found or not eligible for payment",
+        message: "Contract not found",
+      });
+    }
+
+    // Check if contract is in a payable state
+    const payableStatuses = ['payment_pending', 'signed', 'created'];
+    if (!payableStatuses.includes(contract.status)) {
+      console.error(`❌ Contract ${contractId} has non-payable status: ${contract.status}`);
+      return res.status(400).json({
+        success: false,
+        message: `Contract is not eligible for payment. Current status: ${contract.status}`,
+        currentStatus: contract.status,
       });
     }
 
