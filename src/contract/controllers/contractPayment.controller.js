@@ -439,7 +439,7 @@ exports.createContractOrder = async (req, res) => {
       amount: price, // Use the calculated price, not productInfo.price
       approvalUrl: response.data.links.find((link) => link.rel === "approve")
         ?.href,
-      productName: productInfo.name,
+      productName: contract.productName || productInfo.name, // ✅ Use actual product name from contract
     });
   } catch (error) {
     console.error("PayPal Create Order Error:", error);
