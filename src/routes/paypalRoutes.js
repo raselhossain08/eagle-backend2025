@@ -10,6 +10,7 @@ const {
   captureContractOrder,
   createStripePaymentIntent,
   confirmStripePayment,
+  completeFreeOrder,
 } = require("../controllers/contractPayment.controller");
 const { protect, optionalAuth, restrictTo } = require("../middlewares/auth.middleware");
 
@@ -192,5 +193,38 @@ router.post(
  *         description: Payment confirmation failed
  */
 router.post("/contracts/confirm-payment", optionalAuth, confirmStripePayment);
+
+/**
+ * @swagger
+ * /api/paypal/contracts/complete-free-order:
+ *   post:
+ *     summary: Complete a free order (100% discount)
+ *     tags: [PayPal]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               contractId:
+ *                 type: string
+ *               subscriptionType:
+ *                 type: string
+ *               discountCode:
+ *                 type: string
+ *               discountAmount:
+ *                 type: number
+ *               productName:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Free order completed
+ *       400:
+ *         description: Invalid request
+ */
+router.post("/contracts/complete-free-order", optionalAuth, completeFreeOrder);
 
 module.exports = router;

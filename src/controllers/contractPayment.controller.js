@@ -1077,7 +1077,23 @@ exports.createStripePaymentIntent = async (req, res) => {
       });
     }
 
-    // Stripe requires minimum 1 cent (except for $0 which means free)
+    // HANDLE FREE ORDERS (100% DISCOUNT) - Stripe doesn't allow $0 payment intents
+    if (finalPrice === 0) {
+      console.log("🎉 FREE ORDER DETECTED - Cannot create Stripe payment intent with $0");
+      return res.status(400).json({
+        success: false,
+        message: "Cannot create payment intent for free orders. Use the complete-free-order endpoint instead.",
+        isFreeOrder: true,
+        details: {
+          originalPrice: price,
+          discountAmount: discountAmount || 0,
+          finalPrice: 0,
+          suggestion: "Frontend should call /complete-free-order endpoint for 100% discounts"
+        }
+      });
+    }
+
+    // Stripe requires minimum 1 cent
     if (finalPrice > 0 && finalPrice < 0.01) {
       console.warn(`⚠️ Final price ($${finalPrice}) is below Stripe minimum, rounding to $0.01`);
       finalPrice = 0.01;
@@ -1498,6 +1514,161 @@ exports.confirmStripePayment = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to confirm payment",
+      error: error.message,
+    });
+  }
+};
+
+// ✅ Complete Free Order (100% Discount)
+exports.completeFreeOrder = async (req, res) => {
+  try {
+    const { contractId, subscriptionType, discountCode, discountAmount, productName } = req.body;
+    const userId = req.user ? req.user.id : null;
+
+    console.log("🎉 Processing FREE ORDER (100% Discount):");
+    console.log("  Contract ID:", contractId);
+    console.log("  Discount Code:", discountCode);
+    console.log("  Discount Amount:", discountAmount);
+    console.log("  User ID:", userId || "guest");
+
+    if (!contractId) {
+      return res.status(400).json({
+        success: false,
+        message: "Contract ID is required"
+      });
+    }
+
+    // Find the contract (using SignedContract model that's already imported at top)
+    const contract = await SignedContract.findById(contractId);
+
+    if (!contract) {
+      return res.status(404).json({
+        success: false,
+        message: "Contract not found"
+      });
+    }
+
+    // Verify this is actually a free order
+    if (!discountCode || !discountAmount || discountAmount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid free order: discount information missing"
+      });
+    }
+
+    // Mark contract as paid (use "completed" status - valid enum value)
+    contract.paymentStatus = "paid";
+    contract.status = "completed";
+    contract.paymentMethod = "free";
+    contract.paidAt = new Date();
+
+    // Add discount information
+    if (!contract.discount) {
+      contract.discount = {};
+    }
+    contract.discount.code = discountCode;
+    contract.discount.amount = discountAmount;
+    contract.discount.appliedAt = new Date();
+
+    await contract.save();
+
+    console.log("✅ Contract marked as paid (free order):", contract._id);
+
+    // Create transaction record for free order (Transaction model already imported at top)
+    let transaction = null;
+
+    try {
+      const actualPlan = null; // Can be loaded if needed
+      const normalizedProductType = contract.productType;
+
+      transaction = await Transaction.create({
+        userId: userId || null,
+        contractId: contract._id,
+        type: 'charge',
+        status: 'succeeded',
+        amount: {
+          gross: 0,
+          fee: 0,
+          net: 0,
+          tax: 0,
+          discount: Math.round(discountAmount * 100),
+        },
+        currency: 'USD',
+        psp: {
+          provider: 'free',
+          reference: {
+            discountCode: discountCode,
+            type: '100_percent_discount'
+          },
+        },
+        paymentMethod: {
+          type: 'free',
+        },
+        description: `Free order with 100% discount: ${productName || contract.productType}`,
+        metadata: {
+          contractId: contractId,
+          productType: contract.productType,
+          productName: productName || contract.productType,
+          subscriptionType: subscriptionType || 'monthly',
+          paymentMethod: 'free',
+          discountApplied: true,
+          discountCode: discountCode,
+          discountAmount: discountAmount,
+          originalAmount: discountAmount,
+          isFreeOrder: true,
+        },
+      });
+
+      console.log("✅ Created transaction record for free order:", transaction.transactionId);
+    } catch (txError) {
+      console.error("❌ Failed to create transaction record:", txError);
+      // Don't fail the free order completion
+    }
+
+    // Handle user account/subscription (if authenticated)
+    let accountResult = { status: 'guest' };
+    if (userId) {
+      try {
+        const accountHandler = require("../utils/accountHandler");
+        accountResult = await accountHandler.handleContractPayment({
+          userId,
+          contract,
+          email: contract.email,
+          subscriptionType: subscriptionType || 'monthly',
+          amount: 0,
+          discountCode,
+          discountAmount
+        });
+        console.log("✅ User account updated:", accountResult);
+      } catch (accountError) {
+        console.error("❌ Failed to update user account:", accountError);
+        // Don't fail the free order completion
+      }
+    }
+
+    res.json({
+      success: true,
+      message: "Free order completed successfully! Your subscription is now active.",
+      contract: contract,
+      transactionId: transaction ? transaction.transactionId : null,
+      userAccount: accountResult.user ? {
+        status: accountResult.status,
+        userId: accountResult.user._id,
+        email: accountResult.user.email,
+        isPending: accountResult.user.isPendingUser || false
+      } : null,
+      isFreeOrder: true,
+      discountApplied: {
+        code: discountCode,
+        amount: discountAmount,
+      }
+    });
+
+  } catch (error) {
+    console.error("Free Order Completion Error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to complete free order",
       error: error.message,
     });
   }
