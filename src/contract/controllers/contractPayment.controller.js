@@ -1014,19 +1014,24 @@ exports.confirmStripePayment = async (req, res) => {
     const MembershipPlan = require('../../subscription/models/membershipPlan.model');
     let actualPlan = null;
 
-    // Determine subscription name from product pricing configuration
-    let newSubscription;
-    if (typeof productInfo.monthly === 'object' && productInfo.monthly.name) {
-      // For products with nested pricing structure (e.g., script, investment-advising)
-      newSubscription = productInfo.monthly.name;
-    } else if (productInfo.name) {
-      // For products with direct pricing (e.g., basic, diamond, infinity)
-      newSubscription = productInfo.name;
-    } else {
-      // Last resort fallback - use normalized product type
-      newSubscription = normalizedProductType.charAt(0).toUpperCase() + normalizedProductType.slice(1);
+    // ✅ PRIORITY 1: Use contract's actual product name if available
+    let newSubscription = contract.productName;
+
+    // PRIORITY 2: If no productName in contract, determine from product pricing configuration
+    if (!newSubscription) {
+      if (typeof productInfo.monthly === 'object' && productInfo.monthly.name) {
+        // For products with nested pricing structure (e.g., script, investment-advising)
+        newSubscription = productInfo.monthly.name;
+      } else if (productInfo.name) {
+        // For products with direct pricing (e.g., basic, diamond, infinity)
+        newSubscription = productInfo.name;
+      } else {
+        // Last resort fallback - use normalized product type
+        newSubscription = normalizedProductType.charAt(0).toUpperCase() + normalizedProductType.slice(1);
+      }
     }
-    console.log(`💳 Subscription determined from pricing config: "${newSubscription}" (productType: "${contract.productType}", normalized: "${normalizedProductType}")`);
+
+    console.log(`💳 Subscription determined: "${newSubscription}" (Source: ${contract.productName ? 'contract.productName' : 'pricing config'}, productType: "${contract.productType}", normalized: "${normalizedProductType}")`);
 
     try {
       // Try to find the plan by normalized product type for database linkage
@@ -1036,17 +1041,19 @@ exports.confirmStripePayment = async (req, res) => {
       }).lean();
 
       if (actualPlan) {
-        // If we found the plan in DB, use its displayName if available
-        if (actualPlan.displayName) {
+        // If we found the plan in DB and contract has no productName, use displayName
+        if (actualPlan.displayName && !contract.productName) {
           newSubscription = actualPlan.displayName;
           console.log(`✅ Found plan in database: "${actualPlan.name}" → displayName: "${actualPlan.displayName}"`);
+        } else if (contract.productName) {
+          console.log(`✅ Found plan in database: "${actualPlan.name}", but keeping contract.productName: "${contract.productName}"`);
         }
       } else {
-        console.log(`⚠️ Plan not found in database for "${normalizedProductType}", using pricing config name: "${newSubscription}"`);
+        console.log(`⚠️ Plan not found in database for "${normalizedProductType}", using: "${newSubscription}"`);
       }
     } catch (error) {
       console.error("❌ Error fetching plan from database:", error.message);
-      console.log(`⚠️ Using pricing config name as fallback: "${newSubscription}"`);
+      console.log(`⚠️ Using subscription name: "${newSubscription}"`);
     }
 
     // Update user subscription if user exists (including pending users who just paid)
