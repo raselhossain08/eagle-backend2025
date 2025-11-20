@@ -1,6 +1,6 @@
-/**
+﻿/**
  * Tax Provider Configuration
- * বিভিন্ন Tax Providers এর configuration
+ *  Tax Providers  configuration
  */
 
 // TaxJar Provider Configuration

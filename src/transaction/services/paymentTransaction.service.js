@@ -1,4 +1,4 @@
-const Transaction = require('../models/transaction.model');
+﻿const Transaction = require('../models/transaction.model');
 const transactionService = require('./transaction.service');
 const TransactionTaxService = require('./transactionTax.service');
 const transactionTaxService = new TransactionTaxService();
@@ -113,7 +113,7 @@ class PaymentTransactionService {
     }
 
     /**
-     * One-time payment থেকে transaction তৈরি করা
+     * One-time payment  transaction  
      */
     async createOneTimeTransaction(paymentData, userData, orderData = null) {
         try {
@@ -122,7 +122,7 @@ class PaymentTransactionService {
                 amount: paymentData.amount
             });
 
-            // Tax calculation করি if not already calculated
+            
             let taxData = null;
             if (!paymentData.tax || paymentData.tax === 0) {
                 try {
@@ -191,7 +191,7 @@ class PaymentTransactionService {
     }
 
     /**
-     * Refund transaction তৈরি করা
+     * Refund transaction  
      */
     async createRefundTransaction(originalTransactionId, refundData, adminUser) {
         try {
@@ -229,7 +229,7 @@ class PaymentTransactionService {
                 ])
             });
 
-            // Original transaction এ refund add করা
+            
             await originalTxn.addRefund({
                 amount: refundData.amount,
                 reason: refundData.reason,
@@ -251,7 +251,7 @@ class PaymentTransactionService {
     }
 
     /**
-     * Webhook থেকে transaction update করা
+     * Webhook  transaction update 
      */
     async updateTransactionFromWebhook(webhookData) {
         try {
@@ -260,7 +260,7 @@ class PaymentTransactionService {
                 eventType: webhookData.eventType
             });
 
-            // PSP reference দিয়ে transaction খুঁজি
+            
             const transaction = await this.findTransactionByWebhookData(webhookData);
 
             if (!transaction) {
@@ -268,7 +268,7 @@ class PaymentTransactionService {
                 return { success: false, message: 'Transaction not found' };
             }
 
-            // Webhook event add করি
+            
             await transaction.addWebhookEvent({
                 id: webhookData.id,
                 type: webhookData.eventType,
@@ -276,7 +276,7 @@ class PaymentTransactionService {
                 data: webhookData.data
             });
 
-            // Status update করি webhook event অনুযায়ী
+            
             await this.updateTransactionStatus(transaction, webhookData);
 
             console.log('✅ Transaction updated from webhook successfully');

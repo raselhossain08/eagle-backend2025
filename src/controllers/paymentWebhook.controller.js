@@ -1,8 +1,8 @@
-const paymentTransactionService = require('../transaction/services/paymentTransaction.service');
+﻿const paymentTransactionService = require('../transaction/services/paymentTransaction.service');
 
 /**
  * Payment Webhook Handlers
- * Payment providers থেকে আসা webhook গুলো handle করার জন্য
+ * Payment providers   webhook  handle  
  */
 
 /**
@@ -28,7 +28,7 @@ exports.handleStripeWebhook = async (req, res) => {
 
         console.log('🎯 Stripe webhook received:', event.type);
 
-        // Transaction related events handle করি
+        
         const transactionEvents = [
             'charge.succeeded',
             'charge.failed',
@@ -156,7 +156,7 @@ exports.createManualTransaction = async (req, res) => {
             responseMessage: 'Manual transaction created by admin'
         };
 
-        // User data fetch করি
+        
         const User = require('../user/models/user.model');
         const userData = await User.findById(userId);
 
@@ -218,7 +218,7 @@ exports.createManualTransaction = async (req, res) => {
 
 /**
  * Subscription Payment Success Handler
- * Subscription service থেকে call করার জন্য
+ * Subscription service  call  
  */
 exports.handleSubscriptionPayment = async (paymentData, subscriptionData, userData) => {
     try {

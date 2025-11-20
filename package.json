@@ -6,7 +6,8 @@
     "start": "node index.js",
     "dev": "nodemon index.js",
     "build": "echo 'Build complete'",
-    "vercel-build": "echo 'Vercel build complete'"
+    "vercel-build": "echo 'Vercel build complete'",
+    "test:stripe": "node scripts/testStripeIntegration.js"
   },
   "keywords": [],
   "author": "",

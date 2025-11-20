@@ -12,6 +12,7 @@ const paymentGatewayRoutes = require('./paymentGateway.routes');
 const systemSettingsRoutes = require('./systemSettings.routes');
 const profileRoutes = require('./profile.routes');
 const settingsRoutes = require('./settings.routes');
+const stripeSubscriptionRoutes = require('./stripeSubscription.routes');
 
 // Mount route modules
 router.use('/auth', authRoutes);
@@ -24,6 +25,7 @@ router.use('/payment-gateways', paymentGatewayRoutes);
 router.use('/system-settings', systemSettingsRoutes);
 router.use('/profile', profileRoutes);
 router.use('/settings', settingsRoutes);
+router.use('/stripe', stripeSubscriptionRoutes);
 
 // Health check endpoint for RBAC system
 router.get('/health', (req, res) => {

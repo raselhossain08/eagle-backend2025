@@ -1,4 +1,4 @@
-const TaxService = require('../../payment/services/tax.service');
+﻿const TaxService = require('../../payment/services/tax.service');
 const TaxCalculationService = require('../../payment/services/taxCalculation.service');
 const TaxRate = require('../../payment/models/taxRate.model');
 const Transaction = require('../models/transaction.model');
@@ -6,7 +6,7 @@ const mongoose = require('mongoose');
 
 /**
  * Transaction Tax Integration Service
- * Transaction এ automatic tax calculation এবং integration
+ * Transaction  automatic tax calculation  integration
  */
 class TransactionTaxService {
 
@@ -16,7 +16,7 @@ class TransactionTaxService {
     }
 
     /**
-     * Transaction এর জন্য tax calculate করা
+     * Transaction   tax calculate 
      * @param {Object} transactionData - Transaction data
      * @param {Object} userLocation - User billing address/location
      * @param {Object} businessLocation - Business address
@@ -29,7 +29,7 @@ class TransactionTaxService {
                 userState: userLocation?.state
             });
 
-            // Tax calculation input data তৈরি করি
+            
             const taxCalculationInput = {
                 customerId: userLocation._id || new mongoose.Types.ObjectId(),
                 amount: transactionData.amount?.gross || transactionData.amount || 0,
@@ -83,7 +83,7 @@ class TransactionTaxService {
     }
 
     /**
-     * Subscription payment এর জন্য tax calculate করা
+     * Subscription payment   tax calculate 
      */
     async calculateSubscriptionTax(subscriptionData, userData, planData) {
         try {
@@ -123,7 +123,7 @@ class TransactionTaxService {
     }
 
     /**
-     * One-time payment এর জন্য tax calculate করা
+     * One-time payment   tax calculate 
      */
     async calculateOneTimeTax(paymentData, userData, orderData = null) {
         try {
@@ -161,7 +161,7 @@ class TransactionTaxService {
     }
 
     /**
-     * Transaction update এ tax information যোগ করা
+     * Transaction update  tax information  
      */
     async updateTransactionWithTax(transactionId, taxData) {
         try {
@@ -170,11 +170,11 @@ class TransactionTaxService {
                 throw new Error('Transaction not found');
             }
 
-            // Tax information update করি
+            
             transaction.amount.tax = taxData.taxAmount;
             transaction.amount.net = transaction.amount.gross - transaction.amount.fee - taxData.taxAmount + (transaction.amount.discount || 0);
 
-            // Tax metadata add করি
+            
             transaction.metadata.set('taxCalculation', {
                 provider: taxData.provider,
                 rate: taxData.rate,
@@ -184,7 +184,7 @@ class TransactionTaxService {
                 exemptAmount: taxData.exemptAmount || 0
             });
 
-            // Tax timeline add করি
+            
             transaction.audit.changes.push({
                 field: 'tax_calculated',
                 newValue: taxData.taxAmount,
@@ -209,7 +209,7 @@ class TransactionTaxService {
     }
 
     /**
-     * Tax reporting এর জন্য data collect করা
+     * Tax reporting   data collect 
      */
     async generateTaxReport(startDate, endDate, filters = {}) {
         try {
@@ -330,13 +330,13 @@ class TransactionTaxService {
             const userCountry = userData.country || userData.address?.country || 'US';
             const userState = userData.state || userData.address?.state || 'CA';
 
-            // Database থেকে default tax rate খুঁজি
+            
             let taxRate = await TaxRate.findOne({
                 country: userCountry,
                 status: 'active'
             });
 
-            // Default rate না পেলে fallback rate use করি
+            
             if (!taxRate) {
                 taxRate = {
                     rate: this.getDefaultTaxRate(userCountry, userState),

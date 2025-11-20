@@ -17,9 +17,21 @@ const {
     getWebhookDeliveries
 } = require('../controllers/webhookController');
 const paymentWebhookController = require('../controllers/paymentWebhook.controller');
+const stripeWebhookController = require('../controllers/stripeWebhook.controller');
 const { protect, restrictTo, adminOnly } = require('../middlewares/auth.middleware');
 
-// All routes require authentication and admin privileges
+// ========================================
+// PAYMENT WEBHOOK ROUTES (Public - No Auth Required)
+// These must be BEFORE protect middleware
+// ========================================
+
+// Stripe webhook handler - Enhanced with recurring subscription support
+router.post('/stripe', express.raw({ type: 'application/json' }), stripeWebhookController.handleStripeWebhook);
+
+// PayPal webhook handler  
+router.post('/paypal', express.json(), paymentWebhookController.handlePayPalWebhook);
+
+// All routes below require authentication and admin privileges
 router.use(protect);
 router.use(adminOnly);
 
@@ -39,20 +51,10 @@ router.post('/:id/test', testWebhook);
 router.get('/:id/deliveries', getWebhookDeliveries);
 
 // ========================================
-// PAYMENT WEBHOOK ROUTES (Public - No Auth Required)
-// ========================================
-
-// Stripe webhook handler
-router.post('/stripe', express.raw({ type: 'application/json' }), paymentWebhookController.handleStripeWebhook);
-
-// PayPal webhook handler  
-router.post('/paypal', express.json(), paymentWebhookController.handlePayPalWebhook);
-
-// ========================================
 // ADMIN TRANSACTION ROUTES (Auth Required)
 // ========================================
 
 // Manual transaction creation (Admin only)
-router.post('/admin/transactions/manual', protect, adminOnly, paymentWebhookController.createManualTransaction);
+router.post('/admin/transactions/manual', paymentWebhookController.createManualTransaction);
 
 module.exports = router;
