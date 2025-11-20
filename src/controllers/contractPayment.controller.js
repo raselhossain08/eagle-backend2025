@@ -952,8 +952,23 @@ exports.createStripePaymentIntent = async (req, res) => {
       "discount:",
       discountCode || "none",
       "frontendAmount:",
-      amount || "not provided"
+      amount || "not provided",
+      "frontendDiscountAmount:",
+      discountAmount || "not provided"
     );
+
+    // Validate discount amount is not absurdly large
+    if (discountAmount && discountAmount > 10000) {
+      console.error(`❌ Suspicious discount amount: $${discountAmount} - likely in cents instead of dollars`);
+      return res.status(400).json({
+        success: false,
+        message: "Invalid discount amount - please check your request",
+        details: {
+          receivedDiscountAmount: discountAmount,
+          issue: "Discount amount appears to be in wrong units (cents vs dollars)"
+        }
+      });
+    }
 
     // Validate contract exists - for guest users, check by contractId only
     let contract;
@@ -979,51 +994,61 @@ exports.createStripePaymentIntent = async (req, res) => {
       });
     }
 
-    // Get product pricing with normalized product type
-    const normalizedProductType = normalizeProductType(contract.productType);
-    const productInfo = PRODUCT_PRICING[normalizedProductType];
-    if (!productInfo) {
-      console.error(
-        `Invalid product type: ${contract.productType} (normalized: ${normalizedProductType})`
-      );
-      console.error("Available product types:", Object.keys(PRODUCT_PRICING));
-      return res.status(400).json({
-        success: false,
-        message: `Invalid product type: ${contract.productType}`,
-        availableTypes: Object.keys(PRODUCT_PRICING),
-      });
-    }
-
-    // Get the price based on subscription type, handling different pricing structures
+    // Use contract's productName and amount if available, otherwise fallback to static pricing
     let price;
     let productName;
 
-    if (typeof productInfo.monthly === "object") {
-      // For products with nested pricing structure (script, investment-advising, etc.)
-      price =
-        subscriptionType === "yearly"
-          ? parseFloat(productInfo.yearly.price)
-          : parseFloat(productInfo.monthly.price);
-      productName =
-        subscriptionType === "yearly"
-          ? productInfo.yearly.name
-          : productInfo.monthly.name;
+    if (contract.productName && contract.amount) {
+      // Use contract data (preferred - contains actual cart/package data)
+      price = parseFloat(contract.amount);
+      productName = contract.productName;
+      console.log(`✅ Using contract data: ${productName} - $${price}`);
     } else {
-      // For products with direct pricing (basic, diamond, infinity)
-      price =
-        subscriptionType === "yearly"
-          ? productInfo.yearly
-          : productInfo.monthly;
-      productName = productInfo.name;
+      // Fallback to static pricing config
+      const normalizedProductType = normalizeProductType(contract.productType);
+      const productInfo = PRODUCT_PRICING[normalizedProductType];
+
+      if (!productInfo) {
+        console.error(
+          `Invalid product type: ${contract.productType} (normalized: ${normalizedProductType})`
+        );
+        console.error("Available product types:", Object.keys(PRODUCT_PRICING));
+        return res.status(400).json({
+          success: false,
+          message: `Invalid product type: ${contract.productType}`,
+          availableTypes: Object.keys(PRODUCT_PRICING),
+        });
+      }
+
+      // Get the price based on subscription type, handling different pricing structures
+      if (typeof productInfo.monthly === "object") {
+        // For products with nested pricing structure (script, investment-advising, etc.)
+        price =
+          subscriptionType === "yearly"
+            ? parseFloat(productInfo.yearly.price)
+            : parseFloat(productInfo.monthly.price);
+        productName =
+          subscriptionType === "yearly"
+            ? productInfo.yearly.name
+            : productInfo.monthly.name;
+      } else {
+        // For products with direct pricing (basic, diamond, infinity)
+        price =
+          subscriptionType === "yearly"
+            ? productInfo.yearly
+            : productInfo.monthly;
+        productName = productInfo.name;
+      }
+      console.log(`⚠️ Using fallback static pricing: ${productName} - $${price}`);
     }
 
     // Use frontend amount if provided (trusted source after discount validation)
     let finalPrice;
-    if (amount && parseFloat(amount) > 0) {
+    if (amount && parseFloat(amount) >= 0) {
       finalPrice = parseFloat(amount);
       console.log(`💰 Using frontend amount for Stripe (already discounted): $${finalPrice}`);
       // Validate that frontend amount makes sense
-      const calculatedPrice = discountAmount && discountAmount > 0 ? price - discountAmount : price;
+      const calculatedPrice = discountAmount && discountAmount > 0 ? Math.max(0, price - discountAmount) : price;
       const difference = Math.abs(finalPrice - calculatedPrice);
       if (difference > 0.01) {
         console.warn(`⚠️ Frontend amount ($${finalPrice}) differs from calculated ($${calculatedPrice})`);
@@ -1032,9 +1057,30 @@ exports.createStripePaymentIntent = async (req, res) => {
       // Fallback: Apply discount to calculated price
       finalPrice = price;
       if (discountAmount && discountAmount > 0) {
-        finalPrice = price - discountAmount;
+        finalPrice = Math.max(0, price - discountAmount);
         console.log(`💰 Applying discount to Stripe payment: $${price} - $${discountAmount} = $${finalPrice}`);
       }
+    }
+
+    // Validate final price is not negative
+    if (finalPrice < 0) {
+      console.error(`❌ Invalid final price: $${finalPrice} (original: $${price}, discount: $${discountAmount || 0})`);
+      return res.status(400).json({
+        success: false,
+        message: "Invalid payment amount calculated",
+        details: {
+          originalPrice: price,
+          discountAmount: discountAmount || 0,
+          calculatedPrice: finalPrice,
+          issue: "Discount exceeds product price"
+        }
+      });
+    }
+
+    // Stripe requires minimum 1 cent (except for $0 which means free)
+    if (finalPrice > 0 && finalPrice < 0.01) {
+      console.warn(`⚠️ Final price ($${finalPrice}) is below Stripe minimum, rounding to $0.01`);
+      finalPrice = 0.01;
     }
 
     const subscriptionTypeText =
@@ -1077,7 +1123,7 @@ exports.createStripePaymentIntent = async (req, res) => {
         productType: contract.productType,
         subscriptionType: subscriptionType,
         ...PAYMENT_BRANDING.stripe.metadata,
-        productName: productInfo.name,
+        productName: productName,
         ...(discountCode && { discountCode }),
         ...(discountAmount && { discountAmount: discountAmount.toString() }),
         ...(discountAmount && { originalPrice: price.toString() }),
